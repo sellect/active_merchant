@@ -844,7 +844,14 @@ module ActiveMerchant #:nodoc:
         message = response_params['messages']['message']['text']
         test_mode = test? || message =~ /Test Mode/
         success = response_params['messages']['result_code'] == 'Ok'
-        response_params['direct_response'] = parse_direct_response(response_params['direct_response']) if response_params['direct_response']
+
+        # response params are in various places. Search each to find.
+        locations = [response_params['direct_response'], response_params['validation_direct_response_list']['string']]
+
+        locations.each do |data|
+          next if data.nil?
+          response_params['direct_response'] = parse_direct_response(data)
+        end
         transaction_id = response_params['direct_response']['transaction_id'] if response_params['direct_response']
 
         Response.new(success, message, response_params,

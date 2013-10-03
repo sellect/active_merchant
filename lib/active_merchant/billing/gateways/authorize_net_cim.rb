@@ -841,10 +841,6 @@ module ActiveMerchant #:nodoc:
 
         response_params = parse(action, xml)
 
-        message = response_params['messages']['message']['text']
-        test_mode = test? || message =~ /Test Mode/
-        success = response_params['messages']['result_code'] == 'Ok'
-
         # response params are in various places. Search each to find.
         locations = [response_params['direct_response'], response_params['validation_direct_response_list']['string']]
 
@@ -852,12 +848,21 @@ module ActiveMerchant #:nodoc:
           next if data.nil?
           response_params['direct_response'] = parse_direct_response(data)
         end
-        transaction_id = response_params['direct_response']['transaction_id'] if response_params['direct_response']
+
+        direct_response = response_params['direct_response']
+
+        success = %w(1 4).include?(direct_response['response_code'])
+        message = direct_response['message']
+        transaction_id = direct_response['transaction_id']
 
         Response.new(success, message, response_params,
-          :test => test_mode,
+          {
+          :test => test?,
+          :cvv_result => CVVResult.new(:code => direct_response['cvv_response']),
+          :avs_result => AVSResult.new(:code => direct_response['avs_response']),
+          :fraud_review => response_params['direct_response']['response_code'] == 4,
           :authorization => transaction_id || response_params['customer_profile_id'] || (response_params['profile'] ? response_params['profile']['customer_profile_id'] : nil)
-        )
+        })
       end
 
       def tag_unless_blank(xml, tag_name, data)

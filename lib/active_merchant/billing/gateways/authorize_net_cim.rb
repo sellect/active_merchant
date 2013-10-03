@@ -855,14 +855,18 @@ module ActiveMerchant #:nodoc:
         message = direct_response['message']
         transaction_id = direct_response['transaction_id']
 
-        Response.new(success, message, response_params,
-          {
+        cvv_result = CVVResult.new(direct_response['card_code']) if direct_response['card_code']
+        avs_result = AVSResult.new(:code => direct_response['avs_response']) if direct_response['avs_response']
+
+        options = {
           :test => test?,
-          :cvv_result => CVVResult.new(:code => direct_response['cvv_response']),
-          :avs_result => AVSResult.new(:code => direct_response['avs_response']),
+          :cvv_result => cvv_result,
+          :avs_result => avs_result,
           :fraud_review => response_params['direct_response']['response_code'] == 4,
           :authorization => transaction_id || response_params['customer_profile_id'] || (response_params['profile'] ? response_params['profile']['customer_profile_id'] : nil)
-        })
+        }
+
+        Response.new(success, message, response_params, options)
       end
 
       def tag_unless_blank(xml, tag_name, data)

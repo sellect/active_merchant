@@ -842,12 +842,11 @@ module ActiveMerchant #:nodoc:
         response_params = parse(action, xml)
 
         # response params are in various places. Search each to find.
-        locations = [response_params['direct_response'], response_params['validation_direct_response_list']['string']]
+        raw_response = response_params['direct_response'] ||
+                       response_params['validation_direct_response'] ||
+                       response_params['validation_direct_response_list']['string']
 
-        locations.each do |data|
-          next if data.nil?
-          response_params['direct_response'] = parse_direct_response(data)
-        end
+        response_params['direct_response'] = parse_direct_response(raw_response)
 
         direct_response = response_params['direct_response']
 

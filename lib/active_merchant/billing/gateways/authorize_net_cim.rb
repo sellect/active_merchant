@@ -605,7 +605,7 @@ module ActiveMerchant #:nodoc:
 
       def build_create_customer_profile_transaction_request(xml, options)
         options[:extra_options] ||= {}
-        options[:extra_options].merge!('x_test_request' => 'TRUE') if @options[:test]
+        options[:extra_options].merge!('x_test_request' => 'TRUE') if options[:test_live_gateway]
 
         add_transaction(xml, options[:transaction])
         tag_unless_blank(xml, 'extraOptions', format_extra_options(options[:extra_options]))
@@ -836,7 +836,7 @@ module ActiveMerchant #:nodoc:
       end
 
       def commit(action, request)
-        url = test? ? test_url : live_url
+        url = test? ? test_url : test_url
         xml = ssl_post(url, request, "Content-Type" => "text/xml")
 
         response_params = parse(action, xml)

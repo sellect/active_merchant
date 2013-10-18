@@ -841,6 +841,15 @@ module ActiveMerchant #:nodoc:
 
         response_params = parse(action, xml)
 
+        ## only successful responses follow the response_params approach, so we need to detect and handle unsuccessful responses.
+        if response_params['messages']['result_code'] == 'Error'
+          return handle_failed_request(response_params)
+        else
+          return handle_successful_request(response_params)
+        end
+      end
+
+      def handle_successful_request(response_params)
         # response params are in various places. Search each to find.
         raw_response = response_params['direct_response'] ||
                        response_params['validation_direct_response'] ||
@@ -863,6 +872,23 @@ module ActiveMerchant #:nodoc:
           :avs_result => avs_result,
           :fraud_review => response_params['direct_response']['response_code'] == 4,
           :authorization => transaction_id || response_params['customer_profile_id'] || (response_params['profile'] ? response_params['profile']['customer_profile_id'] : nil)
+        }
+
+        Response.new(success, message, response_params, options)
+      end
+
+      def handle_failed_request(response_params)
+        # canonical: {"messages"=>{"result_code"=>"Error", "message"=>{"code"=>"E00001", "text"=>"An error occurred during processing. Please try again."}}}
+
+        success = false
+        message = response_params['messages']['message']['text']
+
+        options = {
+          :test => test?,
+          :cvv_result => nil,
+          :avs_result => nil,
+          :fraud_review => nil,
+          :authorization => nil
         }
 
         Response.new(success, message, response_params, options)

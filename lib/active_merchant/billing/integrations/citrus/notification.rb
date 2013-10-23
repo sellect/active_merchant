@@ -20,7 +20,7 @@ module ActiveMerchant
               else
                 case transaction_status.downcase
                 when 'success' then 'Completed'
-                when 'canceled' then 'Canceled'
+                when 'canceled' then 'Cancelled'
                 end
               end
             else
@@ -113,12 +113,12 @@ module ActiveMerchant
             @message || params['TxMsg']
           end
 
-          def acknowledge
+          def acknowledge(authcode = nil)
             checksum_ok?
           end
 
           def checksum_ok?
-            fields = invoice + transaction_status + amount.to_s + transaction_id + issuerrefno + authidcode + customer_first_name + customer_last_name + pgrespcode + customer_address[:zip]
+            fields = [invoice, transaction_status, amount.to_s, transaction_id, issuerrefno, authidcode, customer_first_name, customer_last_name, pgrespcode, customer_address[:zip]].join
 
             unless Citrus.checksum(@secret_key, fields ) == checksum
               @message = 'checksum mismatch...'

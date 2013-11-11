@@ -150,6 +150,43 @@ module ActiveMerchant
         commit(build_transaction_refund_request(money, reference))
       end
 
+      def create_customer_profile(options = {})
+        requires!(options, :profile)
+        requires!(options[:profile], :email) unless options[:profile][:merchant_customer_id] || options[:profile][:description]
+        requires!(options[:profile], :merchant_customer_id) unless options[:profile][:description] || options[:profile][:email]
+
+        credit_card = options[:profile][:payment_profiles][:payment][:credit_card]
+        billing_address = options[:profile][:payment_profiles][:bill_to]
+        order_id = options[:profile][:merchant_customer_id]
+        customer = {email: options[:profile][:email]}
+        ip = options[:profile][:ip_address]
+
+        options = {billing_address: billing_address, order_id: order_id, profile: options[:profile], customer: customer, ip_address: ip}
+
+        # first do an auth for 0.01
+        pre_auth_request = build_purchase_or_authorization_request_with_credit_card_request('pre', 1, credit_card, options)
+
+        # puts "REQUESTING....\n #{pre_auth_request}"
+
+        # execute and record results
+        preauth = commit(pre_auth_request)
+
+        # puts "got:...\n"
+        # ap preauth.params
+
+        # then void it -- NB: you'd imagine you'd only void a successful pre
+        # auth, but it appears that you have to void all, to reset. weird.
+
+        #if preauth.success?
+          void_request = build_void_or_capture_request(CANCEL_TYPE, 1, preauth.authorization, {order_id: nil})
+          voided = commit(void_request)
+        #end
+        # ap voided.params
+
+        # then return
+        return preauth
+      end
+
       private
       # Create the xml document for a 'cancel' or 'fulfill' transaction.
       #
@@ -198,7 +235,7 @@ module ActiveMerchant
 
             if money
               xml.tag! :TxnDetails do
-                xml.tag! :merchantreference, format_reference_number(options[:order_id])
+                xml.tag! :merchantreference, format_reference_number(options[:order_id]) unless options[:order_id].nil?
                 xml.tag! :amount, amount(money), :currency => options[:currency] || currency(money)
               end
             end
@@ -285,6 +322,9 @@ module ActiveMerchant
             xml.tag! :TxnDetails do
               xml.tag! :merchantreference, format_reference_number(options[:order_id])
               xml.tag! :amount, amount(money), :currency => options[:currency] || currency(money)
+              xml.tag! :Order do
+                add_customer_profile(xml, options[:customer], options[:ip_address])
+              end
             end
           end
         end
@@ -347,6 +387,31 @@ module ActiveMerchant
           end
         end
         xml.target!
+      end
+
+      # Create the xml document for a customer profile request
+      #
+      # Final XML should look like...
+      #
+      def build_create_customer_profile_request(credit_card, options)
+        xml = Builder::XmlMarkup.new :indent => 2
+        xml.instruct!
+        xml.tag! :Request do
+          add_authentication(xml)
+
+          xml.tag! :Transaction do
+            xml.tag! :TokenizeTxn do
+              xml.tag! :method, 'tokenize'
+              xml.tag! :Card do
+                xml.tag! :pan, credit_card.number
+              end
+              # xml.tag! :TxnDetails do
+              #   xml.tag! :merchantreference, format_reference_number(options[:order_id])
+              #   xml.tag! :amount, '0.00'
+              # end
+            end
+          end
+        end
       end
 
       # Create the xml document for a full or partial refund transaction with
@@ -483,7 +548,10 @@ module ActiveMerchant
               xml.tag! :street_address2, address[:address2] unless address[:address2].blank?
               xml.tag! :street_address3, address[:address3] unless address[:address3].blank?
               xml.tag! :street_address4, address[:address4] unless address[:address4].blank?
+              xml.tag! :city, address[:city] unless address[:city].blank?
+              xml.tag! :state_province, address[:state] unless address[:state].blank?
               xml.tag! :postcode, address[:zip] unless address[:zip].blank?
+              xml.tag! :country, address[:country] unless address[:country].blank?
             end
 
             # The ExtendedPolicy defines what to do when the passed data
@@ -494,25 +562,33 @@ module ActiveMerchant
             # a predefined one
             xml.tag! :ExtendedPolicy do
               xml.tag! :cv2_policy,
-              :notprovided =>   POLICY_REJECT,
-              :notchecked =>    POLICY_REJECT,
+              :notprovided =>   POLICY_REJECT, # REJ
+              :notchecked =>    POLICY_REJECT, # REJ
               :matched =>       POLICY_ACCEPT,
-              :notmatched =>    POLICY_REJECT,
+              :notmatched =>    POLICY_REJECT, # REJ
               :partialmatch =>  POLICY_REJECT
               xml.tag! :postcode_policy,
               :notprovided =>   POLICY_ACCEPT,
               :notchecked =>    POLICY_ACCEPT,
               :matched =>       POLICY_ACCEPT,
-              :notmatched =>    POLICY_REJECT,
+              :notmatched =>    POLICY_REJECT, # REJ
               :partialmatch =>  POLICY_ACCEPT
               xml.tag! :address_policy,
               :notprovided =>   POLICY_ACCEPT,
               :notchecked =>    POLICY_ACCEPT,
               :matched =>       POLICY_ACCEPT,
-              :notmatched =>    POLICY_REJECT,
+              :notmatched =>    POLICY_REJECT, # REJ
               :partialmatch =>  POLICY_ACCEPT
             end
           end
+        end
+      end
+
+      # add customer profile
+      def add_customer_profile(xml, customer, ip_address)
+        xml.tag! :Customer do
+          xml.tag! :ip_address, ip_address
+          xml.tag! :email, customer[:email]
         end
       end
 
@@ -525,11 +601,15 @@ module ActiveMerchant
       #   - ActiveMerchant::Billing::Response object
       #
       def commit(request)
-        response = parse(ssl_post(test? ? self.test_url : self.live_url, request))
+        data = ssl_post(test? ? self.test_url : self.live_url, request)
+        response = parse(data)
+
+        cvv_result = CVVResult.new(response[:cv2_result_response], true)
 
         Response.new(response[:status] == DATACASH_SUCCESS, response[:reason], response,
           :test => test?,
-          :authorization => "#{response[:datacash_reference]};#{response[:authcode]};#{response[:ca_reference]}"
+          :authorization => "#{response[:datacash_reference]};#{response[:authcode]};#{response[:ca_reference]}",
+          :cvv_result => cvv_result
         )
       end
 
@@ -579,7 +659,12 @@ module ActiveMerchant
         if node.has_elements?
           node.elements.each{|e| parse_element(response, e) }
         else
-          response[node.name.underscore.to_sym] = node.text
+          if node.attributes.blank?
+            response[node.name.underscore.to_sym] = node.text
+          else
+            response[node.name.underscore.to_sym] = node.attributes
+            response["#{node.name.underscore}_response".to_sym] = node.text
+          end
         end
       end
 

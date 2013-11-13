@@ -98,7 +98,8 @@ module ActiveMerchant
         requires!(options, :order_id)
 
         if authorization_or_credit_card.is_a?(String)
-          request = build_purchase_or_authorization_request_with_continuous_authority_reference_request(AUTH_TYPE, money, authorization_or_credit_card, options)
+          request = build_purchase_or_authorization_request_with_token_request(PRE_TYPE, money, authorization_or_credit_card, options)
+          #request = build_purchase_or_authorization_request_with_continuous_authority_reference_request(AUTH_TYPE, money, authorization_or_credit_card, options)
         else
           request = build_purchase_or_authorization_request_with_credit_card_request(PRE_TYPE, money, authorization_or_credit_card, options)
         end
@@ -158,10 +159,10 @@ module ActiveMerchant
         credit_card = options[:profile][:payment_profiles][:payment][:credit_card]
         billing_address = options[:profile][:payment_profiles][:bill_to]
         order_id = options[:profile][:merchant_customer_id]
-        customer = {email: options[:profile][:email]}
+        email = options[:profile][:email]
         ip = options[:profile][:ip_address]
 
-        options = {billing_address: billing_address, order_id: order_id, profile: options[:profile], customer: customer, ip_address: ip}
+        options = {billing_address: billing_address, order_id: order_id, profile: options[:profile], email: email, ip_address: ip}
 
         # first do an auth for 0.01
         pre_auth_request = build_purchase_or_authorization_request_with_credit_card_request('pre', 1, credit_card, options)
@@ -177,10 +178,10 @@ module ActiveMerchant
         # then void it -- NB: you'd imagine you'd only void a successful pre
         # auth, but it appears that you have to void all, to reset. weird.
 
-        #if preauth.success?
+        if preauth.success?
           void_request = build_void_or_capture_request(CANCEL_TYPE, 1, preauth.authorization, {order_id: nil})
           voided = commit(void_request)
-        #end
+        end
         # ap voided.params
 
         # then return
@@ -305,6 +306,90 @@ module ActiveMerchant
       # Returns:
       #   -xml: Builder document containing the markup
       #
+      def build_purchase_or_authorization_request_with_token_request(type, money, token, options)
+        xml = Builder::XmlMarkup.new :indent => 2
+        xml.instruct!
+        xml.tag! :Request do
+          add_authentication(xml)
+
+          xml.tag! :Transaction do
+            xml.tag! :CardTxn do
+              xml.tag! :method, type
+              add_token(xml, token, options[:expiry], options[:billing_address], options[:cvv])
+            end
+            xml.tag! :TxnDetails do
+              xml.tag! :merchantreference, format_reference_number(options[:order_id])
+              xml.tag! :amount, amount(money), :currency => options[:currency] || currency(money)
+              xml.tag! :Order do
+                add_customer_profile(xml, options[:email], options[:ip_address])
+              end
+            end
+          end
+        end
+        xml.target!
+      end
+
+   # Create the xml document for an 'auth' or 'pre' transaction with a credit card
+      #
+      # Final XML should look like:
+      #
+      # <Request>
+      #  <Authentication>
+      #    <client>99000000</client>
+      #    <password>*******</password>
+      #  </Authentication>
+      #  <Transaction>
+      #    <TxnDetails>
+      #      <merchantreference>123456</merchantreference>
+      #      <amount currency="EUR">10.00</amount>
+      #    </TxnDetails>
+      #    <CardTxn>
+      #      <Card>
+      #        <pan>4444********1111</pan>
+      #        <expirydate>03/04</expirydate>
+      #        <Cv2Avs>
+      #          <street_address1>Flat 7</street_address1>
+      #          <street_address2>89 Jumble
+      #               Street</street_address2>
+      #          <street_address3>Mytown</street_address3>
+      #          <postcode>AV12FR</postcode>
+      #          <cv2>123</cv2>
+      #           <ExtendedPolicy>
+      #             <cv2_policy notprovided="reject"
+      #                          notchecked="accept"
+      #                          matched="accept"
+      #                          notmatched="reject"
+      #                          partialmatch="reject"/>
+      #             <postcode_policy notprovided="reject"
+      #                          notchecked="accept"
+      #                          matched="accept"
+      #                          notmatched="reject"
+      #                          partialmatch="accept"/>
+      #             <address_policy notprovided="reject"
+      #                          notchecked="accept"
+      #                          matched="accept"
+      #                          notmatched="reject"
+      #                          partialmatch="accept"/>
+      #           </ExtendedPolicy>
+      #        </Cv2Avs>
+      #      </Card>
+      #      <method>auth</method>
+      #    </CardTxn>
+      #  </Transaction>
+      # </Request>
+      #
+      # Parameters:
+      #   -type must be 'auth' or 'pre'
+      #   -money - A money object with the price and currency
+      #   -credit_card - The credit_card details to use
+      #   -options:
+      #     :order_id is the merchant reference number
+      #     :billing_address is the billing address for the cc
+      #     :address is the delivery address
+      #
+      # Returns:
+      #   -xml: Builder document containing the markup
+      #
       def build_purchase_or_authorization_request_with_credit_card_request(type, money, credit_card, options)
         xml = Builder::XmlMarkup.new :indent => 2
         xml.instruct!
@@ -323,7 +408,7 @@ module ActiveMerchant
               xml.tag! :merchantreference, format_reference_number(options[:order_id])
               xml.tag! :amount, amount(money), :currency => options[:currency] || currency(money)
               xml.tag! :Order do
-                add_customer_profile(xml, options[:customer], options[:ip_address])
+                add_customer_profile(xml, options[:email], options[:ip_address])
               end
             end
           end
@@ -560,35 +645,97 @@ module ActiveMerchant
             # All of the following elements MUST be present for the
             # xml to be valid (or can drop the ExtendedPolicy and use
             # a predefined one
-            xml.tag! :ExtendedPolicy do
-              xml.tag! :cv2_policy,
-              :notprovided =>   POLICY_REJECT, # REJ
-              :notchecked =>    POLICY_REJECT, # REJ
-              :matched =>       POLICY_ACCEPT,
-              :notmatched =>    POLICY_REJECT, # REJ
-              :partialmatch =>  POLICY_REJECT
-              xml.tag! :postcode_policy,
-              :notprovided =>   POLICY_ACCEPT,
-              :notchecked =>    POLICY_ACCEPT,
-              :matched =>       POLICY_ACCEPT,
-              :notmatched =>    POLICY_REJECT, # REJ
-              :partialmatch =>  POLICY_ACCEPT
-              xml.tag! :address_policy,
-              :notprovided =>   POLICY_ACCEPT,
-              :notchecked =>    POLICY_ACCEPT,
-              :matched =>       POLICY_ACCEPT,
-              :notmatched =>    POLICY_REJECT, # REJ
-              :partialmatch =>  POLICY_ACCEPT
+            # xml.tag! :ExtendedPolicy do
+            #   xml.tag! :cv2_policy,
+            #   :notprovided =>   POLICY_REJECT, # REJ
+            #   :notchecked =>    POLICY_REJECT, # REJ
+            #   :matched =>       POLICY_ACCEPT,
+            #   :notmatched =>    POLICY_REJECT, # REJ
+            #   :partialmatch =>  POLICY_REJECT
+            #   xml.tag! :postcode_policy,
+            #   :notprovided =>   POLICY_ACCEPT,
+            #   :notchecked =>    POLICY_ACCEPT,
+            #   :matched =>       POLICY_ACCEPT,
+            #   :notmatched =>    POLICY_REJECT, # REJ
+            #   :partialmatch =>  POLICY_ACCEPT
+            #   xml.tag! :address_policy,
+            #   :notprovided =>   POLICY_ACCEPT,
+            #   :notchecked =>    POLICY_ACCEPT,
+            #   :matched =>       POLICY_ACCEPT,
+            #   :notmatched =>    POLICY_REJECT, # REJ
+            #   :partialmatch =>  POLICY_ACCEPT
+            # end
+          end
+        end
+      end
+
+
+      # Add credit_card details to the passed XML Builder doc
+      #
+      # Parameters:
+      #   -xml: Builder document that is being built up
+      #   -credit_card: ActiveMerchant::Billing::CreditCard object
+      #   -billing_address: Hash containing all of the billing address details
+      #
+      # Returns:
+      #   -none: The results is stored in the passed xml document
+      #
+      def add_token(xml, token, expiry, address, cv2)
+
+        xml.tag! :Card do
+
+          # DataCash calls the CC number 'pan'
+          xml.tag! :pan, {type: 'token'}, token
+          xml.tag! :expirydate, format_date(expiry.month, expiry.year)
+
+          xml.tag! :Cv2Avs do
+            xml.tag! :cv2, cv2
+            if address
+              xml.tag! :street_address1, address[:address1] unless address[:address1].blank?
+              xml.tag! :street_address2, address[:address2] unless address[:address2].blank?
+              xml.tag! :street_address3, address[:address3] unless address[:address3].blank?
+              xml.tag! :street_address4, address[:address4] unless address[:address4].blank?
+              xml.tag! :city, address[:city] unless address[:city].blank?
+              xml.tag! :state_province, address[:state] unless address[:state].blank?
+              xml.tag! :postcode, address[:zip] unless address[:zip].blank?
+              xml.tag! :country, address[:country] unless address[:country].blank?
             end
+
+            # The ExtendedPolicy defines what to do when the passed data
+            # matches, or not...
+            #
+            # All of the following elements MUST be present for the
+            # xml to be valid (or can drop the ExtendedPolicy and use
+            # a predefined one
+            # xml.tag! :ExtendedPolicy do
+            #   xml.tag! :cv2_policy,
+            #   :notprovided =>   POLICY_REJECT, # REJ
+            #   :notchecked =>    POLICY_REJECT, # REJ
+            #   :matched =>       POLICY_ACCEPT,
+            #   :notmatched =>    POLICY_REJECT, # REJ
+            #   :partialmatch =>  POLICY_REJECT
+            #   xml.tag! :postcode_policy,
+            #   :notprovided =>   POLICY_ACCEPT,
+            #   :notchecked =>    POLICY_ACCEPT,
+            #   :matched =>       POLICY_ACCEPT,
+            #   :notmatched =>    POLICY_REJECT, # REJ
+            #   :partialmatch =>  POLICY_ACCEPT
+            #   xml.tag! :address_policy,
+            #   :notprovided =>   POLICY_ACCEPT,
+            #   :notchecked =>    POLICY_ACCEPT,
+            #   :matched =>       POLICY_ACCEPT,
+            #   :notmatched =>    POLICY_REJECT, # REJ
+            #   :partialmatch =>  POLICY_ACCEPT
+            # end
           end
         end
       end
 
       # add customer profile
-      def add_customer_profile(xml, customer, ip_address)
+      def add_customer_profile(xml, email, ip_address)
         xml.tag! :Customer do
           xml.tag! :ip_address, ip_address
-          xml.tag! :email, customer[:email]
+          xml.tag! :email, email
         end
       end
 

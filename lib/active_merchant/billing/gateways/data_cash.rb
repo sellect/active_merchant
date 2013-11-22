@@ -167,13 +167,8 @@ module ActiveMerchant
         # first do an auth for 0.01
         pre_auth_request = build_purchase_or_authorization_request_with_credit_card_request('pre', 1, credit_card, options)
 
-        puts "REQUESTING....\n #{pre_auth_request}"
-
         # execute and record results
         preauth = commit(pre_auth_request)
-
-        puts "got:...\n"
-        ap preauth.params
 
         # then void it -- NB: you'd imagine you'd only void a successful pre
         # auth, but it appears that you have to void all, to reset. weird.

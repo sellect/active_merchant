@@ -155,7 +155,7 @@ module ActiveMerchant
         # bullshit no-auth tokenization crap
         credit_card = options[:profile][:payment_profiles][:payment][:credit_card]
 
-        tokenize_request = build_tokenize_request(credit_card, options[:merchant_customer_id])
+        tokenize_request = build_tokenize_request(credit_card, options[:profile][:merchant_customer_id])
 
         puts "TOKENIZE REQUEST"
         puts tokenize_request

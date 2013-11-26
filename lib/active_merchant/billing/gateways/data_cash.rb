@@ -698,18 +698,17 @@ module ActiveMerchant
           xml.tag! :expirydate, format_date(expiry.month, expiry.year)
 
           xml.tag! :Cv2Avs do
-            xml.tag! :cv2, cv2
+            xml.tag! :cv2, credit_card.verification_value if credit_card.verification_value?
+            xml.tag! :cv2_present, '1' if credit_card.verification_value?
+
             if address
               xml.tag! :street_address1, address[:address1] unless address[:address1].blank?
               xml.tag! :street_address2, address[:address2] unless address[:address2].blank?
-              xml.tag! :street_address3, address[:address3] unless address[:address3].blank?
-              xml.tag! :street_address4, address[:address4] unless address[:address4].blank?
-              xml.tag! :city, address[:city] unless address[:city].blank?
-              xml.tag! :state_province, address[:state] unless address[:state].blank?
+              xml.tag! :street_address3, address[:city] unless address[:city].blank?
+              xml.tag! :street_address4, address[:state] unless address[:state].blank?
               xml.tag! :postcode, address[:zip] unless address[:zip].blank?
               xml.tag! :country, address[:country] unless address[:country].blank?
             end
-
             # The ExtendedPolicy defines what to do when the passed data
             # matches, or not...
             #

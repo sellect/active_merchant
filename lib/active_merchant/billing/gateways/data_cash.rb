@@ -497,6 +497,9 @@ module ActiveMerchant
               xml.tag! :Card do
                 xml.tag! :pan, credit_card.number
               end
+            xml.tag! :TxnDetails do
+              xml.tag! :merchantreference, format_reference_number(options[:order_id])
+            end
             end
           end
         end

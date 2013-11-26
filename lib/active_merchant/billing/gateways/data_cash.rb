@@ -499,7 +499,7 @@ module ActiveMerchant
               end
             end
             xml.tag! :TxnDetails do
-              xml.tag! :merchantreference, format_reference_number(options[:order_id])
+              xml.tag! :merchantreference, format_reference_number(options[:merchant_customer_id])
             end
           end
         end

@@ -160,12 +160,7 @@ module ActiveMerchant
         puts "TOKENIZE REQUEST"
         puts tokenize_request
 
-        x = commit(tokenize_request)
-
-        puts "TOKENIZE RESPONSE"
-        puts x
-
-        return x
+        commit(tokenize_request)
       end
 
       def create_customer_profile_with_preauth(options = {})
@@ -790,6 +785,8 @@ module ActiveMerchant
       #   -a hash with all of the values returned in the Datacash XML response
       #
       def parse(body)
+        puts "DATACASH RESPONSE"
+        puts body
 
         response = {}
         xml = REXML::Document.new(body)

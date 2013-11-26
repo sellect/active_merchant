@@ -152,6 +152,8 @@ module ActiveMerchant
       end
 
       def create_customer_profile(options = {})
+        puts "PROFILE"
+        pp options
         # bullshit no-auth tokenization crap
         credit_card = options[:profile][:payment_profiles][:payment][:credit_card]
 

@@ -152,6 +152,15 @@ module ActiveMerchant
       end
 
       def create_customer_profile(options = {})
+        # bullshit no-auth tokenization crap
+        credit_card = options[:profile][:payment_profiles][:payment][:credit_card]
+
+        tokenize_request = build_tokenize_request(credit_card)
+
+        commit(tokenize_request)
+      end
+
+      def create_customer_profile_with_preauth(options = {})
         requires!(options, :profile)
         requires!(options[:profile], :email) unless options[:profile][:merchant_customer_id] || options[:profile][:description]
         requires!(options[:profile], :merchant_customer_id) unless options[:profile][:description] || options[:profile][:email]
@@ -469,11 +478,11 @@ module ActiveMerchant
         xml.target!
       end
 
-      # Create the xml document for a customer profile request
+      # Create the xml document for a token request
       #
       # Final XML should look like...
       #
-      def build_create_customer_profile_request(credit_card, options)
+      def build_tokenize_request(credit_card)
         xml = Builder::XmlMarkup.new :indent => 2
         xml.instruct!
         xml.tag! :Request do
@@ -485,10 +494,6 @@ module ActiveMerchant
               xml.tag! :Card do
                 xml.tag! :pan, credit_card.number
               end
-              # xml.tag! :TxnDetails do
-              #   xml.tag! :merchantreference, format_reference_number(options[:order_id])
-              #   xml.tag! :amount, '0.00'
-              # end
             end
           end
         end

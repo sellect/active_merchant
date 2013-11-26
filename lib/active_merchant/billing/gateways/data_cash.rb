@@ -157,7 +157,15 @@ module ActiveMerchant
 
         tokenize_request = build_tokenize_request(credit_card)
 
-        commit(tokenize_request)
+        puts "TOKENIZE REQUEST"
+        puts tokenize_request
+
+        x = commit(tokenize_request)
+
+        puts "TOKENIZE RESPONSE"
+        puts x
+
+        return x
       end
 
       def create_customer_profile_with_preauth(options = {})

@@ -698,8 +698,8 @@ module ActiveMerchant
           xml.tag! :expirydate, format_date(expiry.month, expiry.year)
 
           xml.tag! :Cv2Avs do
-            xml.tag! :cv2, credit_card.verification_value if credit_card.verification_value?
-            xml.tag! :cv2_present, '1' if credit_card.verification_value?
+            xml.tag! :cv2, cv2
+            xml.tag! :cv2_present, '1'
 
             if address
               xml.tag! :street_address1, address[:address1] unless address[:address1].blank?

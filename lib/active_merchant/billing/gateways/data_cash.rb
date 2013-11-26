@@ -155,7 +155,7 @@ module ActiveMerchant
         # bullshit no-auth tokenization crap
         credit_card = options[:profile][:payment_profiles][:payment][:credit_card]
 
-        tokenize_request = build_tokenize_request(credit_card)
+        tokenize_request = build_tokenize_request(credit_card, options)
 
         puts "TOKENIZE REQUEST"
         puts tokenize_request
@@ -485,7 +485,7 @@ module ActiveMerchant
       #
       # Final XML should look like...
       #
-      def build_tokenize_request(credit_card)
+      def build_tokenize_request(credit_card, options={})
         xml = Builder::XmlMarkup.new :indent => 2
         xml.instruct!
         xml.tag! :Request do
@@ -497,9 +497,9 @@ module ActiveMerchant
               xml.tag! :Card do
                 xml.tag! :pan, credit_card.number
               end
+            end
             xml.tag! :TxnDetails do
               xml.tag! :merchantreference, format_reference_number(options[:order_id])
-            end
             end
           end
         end

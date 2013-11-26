@@ -104,6 +104,9 @@ module ActiveMerchant
           request = build_purchase_or_authorization_request_with_credit_card_request(PRE_TYPE, money, authorization_or_credit_card, options)
         end
 
+        puts "PAYMENT REQUEST"
+        puts request
+
         commit(request)
       end
 

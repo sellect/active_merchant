@@ -166,6 +166,13 @@ module ActiveMerchant
         commit(tokenize_request)
       end
 
+      def update_customer_profile(options = {})
+        token = options[:profile][:token]
+        merchant_customer_id = options[:profile][:merchant_customer_id]
+        tokenize_request = build_tokenize_request(token, merchant_customer_id)
+        commit(tokenize_request)
+      end
+
       def create_customer_profile_with_preauth(options = {})
         requires!(options, :profile)
         requires!(options[:profile], :email) unless options[:profile][:merchant_customer_id] || options[:profile][:description]
@@ -248,6 +255,7 @@ module ActiveMerchant
               xml.tag! :TxnDetails do
                 xml.tag! :merchantreference, format_reference_number(options[:order_id]) unless options[:order_id].nil?
                 xml.tag! :amount, amount(money), :currency => options[:currency] || currency(money)
+                xml.tag! :capturemethod, 'ecomm'
               end
             end
           end
@@ -489,6 +497,7 @@ module ActiveMerchant
       # Final XML should look like...
       #
       def build_tokenize_request(credit_card, merch_ref)
+        retokenize = credit_card.is_a?(String)
         xml = Builder::XmlMarkup.new :indent => 2
         xml.instruct!
         xml.tag! :Request do
@@ -496,9 +505,13 @@ module ActiveMerchant
 
           xml.tag! :Transaction do
             xml.tag! :TokenizeTxn do
-              xml.tag! :method, 'tokenize'
+              xml.tag! :method, retokenize ? 'retokenize' : 'tokenize'
               xml.tag! :Card do
-                xml.tag! :pan, credit_card.number
+                if retokenize
+                  xml.tag! :pan, credit_card, :type => "token"
+                else
+                  xml.tag! :pan, credit_card.number
+                end
               end
             end
             xml.tag! :TxnDetails do

@@ -360,6 +360,21 @@ module ActiveMerchant
       #    <TxnDetails>
       #      <merchantreference>123456</merchantreference>
       #      <amount currency="EUR">10.00</amount>
+      #      <!-- ADDED FOR REALTIME FRAUD SCREENING -->
+      #      <The3rdMan type=”realtime”>
+      #        <!-- read section 2.4.7.1 for these fields -->
+      #        <CustomerInformation>...</CustomerInformation>
+      #        <DeliveryAddress>...</DeliveryAddress>
+      #        <BillingAddress>...</BillingAddress>
+      #        <OrderInformation>...</OrderInformation>
+      #        <Realtime>
+      #          <real_time_callback_format>XML</real_time_callback_format>
+      #          <real_time_callback>http://www.callback.com/cgibin/callback.cgi</real_time_callback>
+      #          <!-- unclear what the available options are -->
+      #          <real_time_callback_options>2</real_time_callback_options>
+      #        </Realtime>
+      #      </The3rdMan>
+      #      <!-- END - ADDED FOR REALTIME FRAUD SCREENING -->
       #    </TxnDetails>
       #    <CardTxn>
       #      <Card>
@@ -428,6 +443,8 @@ module ActiveMerchant
               xml.tag! :Order do
                 add_customer_profile(xml, options[:email], options[:ip_address])
               end
+              # FIXME: finish fraud integration
+              xml.tag! :The3rdMan, add_fraud_fields(...), :type => "realtime"
             end
           end
         end

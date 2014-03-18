@@ -431,7 +431,6 @@ module ActiveMerchant
               xml.tag! :Order do
                 add_customer_profile(xml, options[:email], options[:ip_address])
               end
-              # FIXME: finish fraud integration
               xml.tag! :The3rdMan, add_fraud_fields(xml, options), :type => "realtime"
             end
           end

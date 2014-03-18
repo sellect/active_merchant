@@ -360,21 +360,9 @@ module ActiveMerchant
       #    <TxnDetails>
       #      <merchantreference>123456</merchantreference>
       #      <amount currency="EUR">10.00</amount>
-      #      <!-- ADDED FOR REALTIME FRAUD SCREENING -->
-      #      <The3rdMan type=”realtime”>
-      #        <!-- read section 2.4.7.1 for these fields -->
-      #        <CustomerInformation>...</CustomerInformation>
-      #        <DeliveryAddress>...</DeliveryAddress>
-      #        <BillingAddress>...</BillingAddress>
-      #        <OrderInformation>...</OrderInformation>
-      #        <Realtime>
-      #          <real_time_callback_format>XML</real_time_callback_format>
-      #          <real_time_callback>http://www.callback.com/cgibin/callback.cgi</real_time_callback>
-      #          <!-- unclear what the available options are -->
-      #          <real_time_callback_options>2</real_time_callback_options>
-      #        </Realtime>
-      #      </The3rdMan>
-      #      <!-- END - ADDED FOR REALTIME FRAUD SCREENING -->
+      #
+      #      <!-- ADDITIONAL REALTIME FRAUD SCREENING - see add_fraud_rules below -->
+      #
       #    </TxnDetails>
       #    <CardTxn>
       #      <Card>
@@ -444,7 +432,7 @@ module ActiveMerchant
                 add_customer_profile(xml, options[:email], options[:ip_address])
               end
               # FIXME: finish fraud integration
-              xml.tag! :The3rdMan, add_fraud_fields(...), :type => "realtime"
+              xml.tag! :The3rdMan, add_fraud_fields(xml, options), :type => "realtime"
             end
           end
         end
@@ -774,6 +762,136 @@ module ActiveMerchant
         xml.tag! :Customer do
           xml.tag! :ip_address, ip_address
           xml.tag! :email, email
+        end
+      end
+
+      # add fraud rules
+      # <The3rdMan type="realtime">
+      #   <!-- read section 2.4.7.1 for these fields -->
+      #   <CustomerInformation>...</CustomerInformation>
+      #   <DeliveryAddress>...</DeliveryAddress>
+      #   <BillingAddress>...</BillingAddresss>
+      #   <OrderInformation>...</OrderInformation>
+      # </The3rdMan>
+      def add_fraud_fields(xml, options)
+        xml.tag! :The3rdMan, {type: "realtime"} do
+          add_customer_information(xml, options)
+          add_delivery_address(xml, options[:shipping_address])
+          add_billing_address(xml, options[:billing_address])
+          add_order_information(xml, options[:order])
+        end
+      end
+
+      # <CustomerInformation>
+      #    <customer_reference>CUSTREF000001</customer_reference>
+      #    <delivery_forename>Alice</delivery_forename>
+      #    <delivery_surname>Smith</delivery_surname>
+      #    <delivery_phone_number>0131 123 1234</delivery_phone_number>
+      #    <email>jsmith@devnull.co.uk</email>
+      #    <first_purchase_date>2004-02-21</first_purchase_date>
+      #    <forename>John</forename>
+      #    <surname>Smith</surname>
+      #    <ip_address>192.168.0.1</ip_address>
+      #    <order_number>R123123123</order_number>
+      #    <previous_purchases count="5" value="58.94"/>
+      #    <sales_channel>3</sales_channel>
+      #    <telephone>0131 123 1234</telephone>
+      # </CustomerInformation>
+      #
+      def add_customer_information(xml, options)
+        customer = options[:customer]
+        billing  = options[:billing_address]
+        shipping = options[:shipping_address]
+        xml.tag! :CustomerInformation do
+          xml.tag! :customer_reference,    customer[:reference]
+          xml.tag! :first_purchase_date,   customer[:first_purchase_date]
+          xml.tag! :delivery_forename,     shipping[:first_name]
+          xml.tag! :delivery_surname,      shipping[:last_name]
+          xml.tag! :delivery_phone_number, shipping[:phone_number]
+          xml.tag! :email,                 options[:email]
+          xml.tag! :forename,              billing[:first_name]
+          xml.tag! :surname,               billing[:last_name]
+          xml.tag! :telephone,             billing[:phone_number]
+          xml.tag! :ip_address,            options[:ip_address]
+          xml.tag! :order_number,          options[:order_id]
+          xml.tag! :sales_channel,         "3" # hardcoded to "Internet", see 2.4.7.1.2 CustomerInformation for more
+          xml.tag! :previous_purchases, {count: customer[:purchases][:count], value: customer[:purchases][:value]}
+        end
+      end
+
+      # <DeliveryAddress>
+      #    <city>London</city>
+      #    <county>London</county>
+      #    <country>826</country>
+      #    <forename>Adam</forname>
+      #    <surname>Smith</surname>
+      #    <postcode>AB1 2CD</postcode>
+      #    <street_address_1>10 Stratford Road</street_address_1>
+      #    <street_address_2>Windsor</street_address_2>
+      # </DeliveryAddress>
+      def add_delivery_address(xml, shipping)
+        xml.tag! :DeliveryAddress do
+          xml.tag! :city,             shipping[:city]
+          xml.tag! :county,           shipping[:state]
+          xml.tag! :country,          shipping[:country]
+          xml.tag! :forename,         shipping[:first_name]
+          xml.tag! :surname,          shipping[:last_name]
+          xml.tag! :postcode,         shipping[:zip]
+          xml.tag! :street_address_1, shipping[:address1]
+          xml.tag! :street_address_2, shipping[:address2]
+        end
+      end
+
+      # <BillingAddress>
+      #    <city>London</city>
+      #    <county>London</county>
+      #    <country>826</country>
+      #    <postcode>AB1 2CD</postcode>
+      #    <street_address_1>10 Stratford Road</street_address_1>
+      #    <street_address_2>Windsor</street_address_2>
+      # </BillingAddresss>
+      def add_billing_address(xml, billing)
+        xml.tag! :BillingAddress do
+          xml.tag! :city,             billing[:city]
+          xml.tag! :county,           billing[:state]
+          xml.tag! :country,          billing[:country]
+          xml.tag! :postcode,         billing[:zip]
+          xml.tag! :street_address_1, billing[:address1]
+          xml.tag! :street_address_2, billing[:address2]
+        end
+      end
+
+      # <OrderInformation>
+      #    <distribution_channel>First Class Post</distribution_channel>
+      #    <gift_message>For someone special</gift_message>
+      #    <Products count="1">...</Products>
+      # </OrderInformation>
+      def add_order_information(xml, order_info)
+        xml.tag! :OrderInformation do
+          xml.tag! :distribution_channel, order_info[:shipping_method]
+          xml.tag! :gift_message,         order_info[:gift_message]
+          add_products(xml, order_info[:products])
+        end
+      end
+
+      # <Products count="1">
+      #   <Product>
+      #     <code>Sku123123</code>
+      #     <prod_id>125</prod_id>
+      #     <quantity>1</quantity>
+      #     <price>22.99</price>
+      #   </Product>
+      # </Products>
+      def add_products(xml, products)
+        xml.tag! :Products, {count: products.inject(0) {|sum, hash| sum + hash[:quantity]} } do
+          products.each do |product|
+            xml.tag! :Product do
+              xml.tag! :code,     product[:sku]
+              xml.tag! :prod_id,  product[:id]
+              xml.tag! :quantity, product[:quantity]
+              xml.tag! :price,    product[:price]
+            end
+          end
         end
       end
 

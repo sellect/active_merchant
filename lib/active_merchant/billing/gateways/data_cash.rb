@@ -431,7 +431,7 @@ module ActiveMerchant
               xml.tag! :Order do
                 add_customer_profile(xml, options[:email], options[:ip_address])
               end
-              xml.tag! :The3rdMan, add_fraud_fields(xml, options), :type => "realtime"
+              add_fraud_fields(xml, options)
             end
           end
         end
@@ -773,7 +773,7 @@ module ActiveMerchant
       #   <OrderInformation>...</OrderInformation>
       # </The3rdMan>
       def add_fraud_fields(xml, options)
-        xml.tag! :The3rdMan, {type: "realtime"} do
+        xml.tag! :The3rdMan, type: "realtime" do
           add_customer_information(xml, options)
           add_delivery_address(xml, options[:shipping_address])
           add_billing_address(xml, options[:billing_address])

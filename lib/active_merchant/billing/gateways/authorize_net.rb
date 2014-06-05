@@ -86,15 +86,24 @@ module ActiveMerchant #:nodoc:
       # * <tt>paysource</tt> -- The CreditCard or Check details for the transaction.
       # * <tt>options</tt> -- A hash of optional parameters.
       def authorize(money, paysource, options = {})
-        post = {}
-        add_currency_code(post, money, options)
-        add_invoice(post, options)
-        add_payment_source(post, paysource, options)
-        add_address(post, options)
-        add_customer_data(post, options)
-        add_duplicate_window(post)
 
-        commit('AUTH_ONLY', money, post)
+        if paysource.is_a?(String)
+          # This is a Sellect fix to allow the same authorize 
+          # method to be called from the gateway, matches other
+          # gateway behaviors
+          cim = AuthorizeNetCimGateway.new(@options)
+          cim.create_customer_profile_transaction(options)
+        else
+          post = {}
+          add_currency_code(post, money, options)
+          add_invoice(post, options)
+          add_payment_source(post, paysource, options)
+          add_address(post, options)
+          add_customer_data(post, options)
+          add_duplicate_window(post)
+
+          commit('AUTH_ONLY', money, post)
+        end
       end
 
       # Perform a purchase, which is essentially an authorization and capture in a single operation.

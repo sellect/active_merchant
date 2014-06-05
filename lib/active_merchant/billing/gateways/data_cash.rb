@@ -154,35 +154,29 @@ module ActiveMerchant
         commit(build_transaction_refund_request(money, reference))
       end
 
-      def create_customer_profile(options = {})
-        # bullshit no-auth tokenization crap
-        credit_card = options[:profile][:payment_profiles][:payment][:credit_card]
-
+      def tokenize(options = {})
+        credit_card = options[:profile][:payment_profile][:payment][:credit_card]
         tokenize_request = build_tokenize_request(credit_card, options[:profile][:merchant_customer_id])
-
-        puts "TOKENIZE REQUEST"
-        puts tokenize_request
-
         commit(tokenize_request)
       end
 
       def update_customer_profile(options = {})
-        token = options[:profile][:token]
+        token                = options[:profile][:token]
         merchant_customer_id = options[:profile][:merchant_customer_id]
-        tokenize_request = build_tokenize_request(token, merchant_customer_id)
+        tokenize_request     = build_tokenize_request(token, merchant_customer_id)
         commit(tokenize_request)
       end
 
-      def create_customer_profile_with_preauth(options = {})
+      def create_customer_profile(options = {})
         requires!(options, :profile)
         requires!(options[:profile], :email) unless options[:profile][:merchant_customer_id] || options[:profile][:description]
         requires!(options[:profile], :merchant_customer_id) unless options[:profile][:description] || options[:profile][:email]
 
-        credit_card = options[:profile][:payment_profiles][:payment][:credit_card]
-        billing_address = options[:profile][:payment_profiles][:bill_to]
-        order_id = options[:profile][:merchant_customer_id]
-        email = options[:profile][:email]
-        ip = options[:profile][:ip_address]
+        credit_card     = options[:profile][:payment_profile][:payment][:credit_card]
+        billing_address = options[:profile][:payment_profile][:bill_to]
+        order_id        = options[:profile][:merchant_customer_id]
+        email           = options[:profile][:email]
+        ip              = options[:profile][:ip_address]
 
         options = {billing_address: billing_address, order_id: order_id, profile: options[:profile], email: email, ip_address: ip}
 
@@ -197,12 +191,11 @@ module ActiveMerchant
 
         if preauth.success?
           void_request = build_void_or_capture_request(CANCEL_TYPE, 1, preauth.authorization, {order_id: nil})
-          voided = commit(void_request)
+          voided       = commit(void_request)
+          profile      = tokenize(options)
+        else
+          preauth
         end
-        # ap voided.params
-
-        # then return
-        return preauth
       end
 
       private

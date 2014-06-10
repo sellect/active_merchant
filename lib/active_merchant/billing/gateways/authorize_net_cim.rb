@@ -840,7 +840,7 @@ module ActiveMerchant #:nodoc:
       end
 
       def commit(action, request)
-        url = test? ? test_url : test_url
+        url = test? ? test_url : live_url
         xml = ssl_post(url, request, "Content-Type" => "text/xml")
 
         response_params = parse(action, xml)
@@ -855,28 +855,33 @@ module ActiveMerchant #:nodoc:
 
       def handle_successful_request(response_params)
         # response params are in various places. Search each to find.
+
         raw_response = response_params['direct_response'] ||
                        response_params['validation_direct_response'] ||
-                       response_params['validation_direct_response_list']['string']
+                       response_params['validation_direct_response_list'].try(:[], 'string')
 
-        response_params['direct_response'] = parse_direct_response(raw_response)
+        if raw_response
+          response_params['direct_response'] = parse_direct_response(raw_response)
+          direct_response = response_params['direct_response']
+          success = %w(1 4).include?(direct_response['response_code'])
+          message = direct_response['message']
+          transaction_id = direct_response['transaction_id']
+  
+          cvv_result = CVVResult.new(direct_response['card_code']) if direct_response['card_code']
+          avs_result = AVSResult.new(:code => direct_response['avs_response']) if direct_response['avs_response']
 
-        direct_response = response_params['direct_response']
-
-        success = %w(1 4).include?(direct_response['response_code'])
-        message = direct_response['message']
-        transaction_id = direct_response['transaction_id']
-
-        cvv_result = CVVResult.new(direct_response['card_code']) if direct_response['card_code']
-        avs_result = AVSResult.new(:code => direct_response['avs_response']) if direct_response['avs_response']
-
-        options = {
-          :test => test?,
-          :cvv_result => cvv_result,
-          :avs_result => avs_result,
-          :fraud_review => response_params['direct_response']['response_code'] == 4,
-          :authorization => transaction_id || response_params['customer_profile_id'] || (response_params['profile'] ? response_params['profile']['customer_profile_id'] : nil)
-        }
+          options = {
+            :test => test?,
+            :cvv_result => cvv_result,
+            :avs_result => avs_result,
+            :fraud_review => response_params['direct_response'].try(:[], 'response_code') == 4,
+            :authorization => transaction_id || response_params['customer_profile_id'] || (response_params['profile'] ? response_params['profile']['customer_profile_id'] : nil)
+          }
+        else
+          message = response_params["messages"]["message"]
+          success = !!message["text"].downcase[/success/]
+          options = {}
+        end
 
         Response.new(success, message, response_params, options)
       end

@@ -270,6 +270,9 @@ module ActiveMerchant
       #      <merchantreference>123456</merchantreference>
       #      <amount currency="EUR">10.00</amount>
       #    </TxnDetails>
+      #
+      #      <!-- ADDITIONAL REALTIME FRAUD SCREENING - see add_fraud_rules below -->
+      #
       #    <CardTxn>
       #      <Card>
       #        <pan>4444********1111</pan>
@@ -334,6 +337,7 @@ module ActiveMerchant
               xml.tag! :Order do
                 add_customer_profile(xml, options[:email], options[:ip_address])
               end
+              add_fraud_fields(xml, options)
             end
           end
         end
@@ -766,11 +770,13 @@ module ActiveMerchant
       #   <OrderInformation>...</OrderInformation>
       # </The3rdMan>
       def add_fraud_fields(xml, options)
+        return unless options[:perform_fraud_check]
         xml.tag! :The3rdMan, type: "realtime" do
           add_customer_information(xml, options)
           add_delivery_address(xml, options[:shipping_address])
           add_billing_address(xml, options[:billing_address])
           add_order_information(xml, options[:order])
+          add_realtime_fields(xml, options[:realtime])
         end
       end
 
@@ -795,7 +801,7 @@ module ActiveMerchant
         billing  = options[:billing_address]
         shipping = options[:shipping_address]
         xml.tag! :CustomerInformation do
-          xml.tag! :customer_reference,    customer[:reference]
+          # xml.tag! :customer_reference,    customer[:reference] # OPTIONAL: I think, based on 2.4.7.1.2
           xml.tag! :first_purchase_date,   customer[:first_purchase_date]
           xml.tag! :delivery_forename,     shipping[:first_name]
           xml.tag! :delivery_surname,      shipping[:last_name]
@@ -805,7 +811,7 @@ module ActiveMerchant
           xml.tag! :surname,               billing[:last_name]
           xml.tag! :telephone,             billing[:phone_number]
           xml.tag! :ip_address,            options[:ip_address]
-          xml.tag! :order_number,          options[:order_id]
+          xml.tag! :order_number,          options[:order_number]
           xml.tag! :sales_channel,         "3" # hardcoded to "Internet", see 2.4.7.1.2 CustomerInformation for more
           xml.tag! :previous_purchases, {count: customer[:purchases][:count], value: customer[:purchases][:value]}
         end
@@ -875,7 +881,7 @@ module ActiveMerchant
       #   </Product>
       # </Products>
       def add_products(xml, products)
-        xml.tag! :Products, {count: products.inject(0) {|sum, hash| sum + hash[:quantity]} } do
+        xml.tag! :Products, {count: products.first[:count] } do
           products.each do |product|
             xml.tag! :Product do
               xml.tag! :code,     product[:sku]
@@ -884,6 +890,14 @@ module ActiveMerchant
               xml.tag! :price,    product[:price]
             end
           end
+        end
+      end
+
+      def add_realtime_fields(xml, realtime)
+        xml.tag! :Realtime do
+          xml.tag! :real_time_callback_format, realtime[:callback_format]
+          xml.tag! :real_time_callback, realtime[:callback_url]
+          xml.tag! :real_time_callback_options, realtime[:callback_options]
         end
       end
 

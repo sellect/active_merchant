@@ -832,8 +832,6 @@ module ActiveMerchant
           xml.tag! :city,             shipping[:city]
           xml.tag! :county,           shipping[:state]
           xml.tag! :country,          shipping[:country]
-          xml.tag! :forename,         shipping[:first_name]
-          xml.tag! :surname,          shipping[:last_name]
           xml.tag! :postcode,         shipping[:zip]
           xml.tag! :street_address_1, shipping[:address1]
           xml.tag! :street_address_2, shipping[:address2]

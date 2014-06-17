@@ -176,8 +176,8 @@ module ActiveMerchant
         requires!(options[:profile], :email) unless options[:profile][:merchant_customer_id] || options[:profile][:description]
         requires!(options[:profile], :merchant_customer_id) unless options[:profile][:description] || options[:profile][:email]
 
-        credit_card     = options[:profile][:payment_profile][:payment][:credit_card]
-        billing_address = options[:profile][:payment_profile][:bill_to]
+        credit_card     = options[:profile][:payment_profiles][:payment][:credit_card]
+        billing_address = options[:profile][:payment_profiles][:bill_to]
         order_id        = options[:profile][:merchant_customer_id]
         email           = options[:profile][:email]
         ip              = options[:profile][:ip_address]
@@ -338,9 +338,14 @@ module ActiveMerchant
             xml.tag! :TxnDetails do
               xml.tag! :merchantreference, format_reference_number(options[:order_id])
               xml.tag! :amount, amount(money), :currency => options[:currency] || currency(money)
-              xml.tag! :Order do
-                add_customer_profile(xml, options[:email], options[:ip_address])
+              
+              # NOTE: Datacash will complain if these params are present at the same time as the fraud fields 
+              unless options[:perform_fraud_check]
+                xml.tag! :Order do
+                  add_customer_profile(xml, options[:email], options[:ip_address])
+                end
               end
+              
               add_fraud_fields(xml, options)
             end
           end
@@ -429,9 +434,14 @@ module ActiveMerchant
             xml.tag! :TxnDetails do
               xml.tag! :merchantreference, format_reference_number(options[:order_id])
               xml.tag! :amount, amount(money), :currency => options[:currency] || currency(money)
-              xml.tag! :Order do
-                add_customer_profile(xml, options[:email], options[:ip_address])
+
+              # NOTE: Datacash will complain if these params are present at the same time as the fraud fields
+              unless options[:perform_fraud_check]
+                xml.tag! :Order do
+                  add_customer_profile(xml, options[:email], options[:ip_address])
+                end
               end
+              
               add_fraud_fields(xml, options)
             end
           end
@@ -917,10 +927,12 @@ module ActiveMerchant
 
         cvv_result = CVVResult.new(response[:cv2_result_response], true)
 
-        Response.new(response[:status] == DATACASH_SUCCESS, response[:reason], response,
+        Response.new(response[:status] == DATACASH_SUCCESS, 
+          response[:reason], response,
           :test => test?,
           :authorization => "#{response[:datacash_reference]};#{response[:authcode]};#{response[:ca_reference]}",
-          :cvv_result => cvv_result
+          :cvv_result => cvv_result,
+          :fraud_review => response[:recommendation]
         )
       end
 

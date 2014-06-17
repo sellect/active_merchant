@@ -17,7 +17,11 @@ module ActiveMerchant
       self.display_name = 'DataCash'
 
       # Datacash server URLs
-      self.test_url = 'https://testserver.datacash.com/Transaction'
+      
+      # Email from datacash suggests URL should be '...accreditation.datacash...'
+      #self.test_url = 'https://testserver.datacash.com/Transaction'
+      self.test_url = 'https://accreditation.datacash.com/Transaction/cnp_a'
+
       self.live_url = 'https://mars.transaction.datacash.com/Transaction'
 
       # Different Card Transaction Types

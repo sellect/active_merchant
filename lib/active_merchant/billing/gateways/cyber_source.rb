@@ -120,11 +120,18 @@ module ActiveMerchant #:nodoc:
       def authorize(money, creditcard_or_reference, options = {})
         requires!(options,  :order_id)
         setup_address_hash(options)
-        commit(build_auth_request(money, creditcard_or_reference, options), options )
+        request = build_auth_request(money, creditcard_or_reference, options)
+        puts "AUTHORIZE REQUEST"
+        puts request
+        commit(request, options )
       end
 
       def auth_reversal(money, identification, options = {})
-        commit(build_auth_reversal_request(money, identification, options), options)
+        request = build_auth_reversal_request(money, identification, options)
+
+        puts "AUTH REVERSAL"
+        puts request.inspect
+        commit(request, options)
       end
 
       # Capture an authorization that has previously been requested
@@ -233,7 +240,9 @@ module ActiveMerchant #:nodoc:
 
       def build_auth_request(money, creditcard_or_reference, options)
         xml = Builder::XmlMarkup.new :indent => 2
+        #add_address(xml, creditcard_or_reference, options[:shipping_address], options, true)
         add_payment_method_or_subscription(xml, money, creditcard_or_reference, options)
+        #add_line_item_data(xml, options)
         add_auth_service(xml)
         add_business_rules_data(xml)
         xml.target!
@@ -412,7 +421,7 @@ module ActiveMerchant #:nodoc:
           xml.tag! 'country',               address[:country]
           xml.tag! 'company',               address[:company]                 unless address[:company].blank?
           xml.tag! 'companyTaxID',          address[:companyTaxID]            unless address[:company_tax_id].blank?
-          xml.tag! 'phoneNumber',           address[:phone]                   unless address[:phone].blank?
+          xml.tag! 'phoneNumber',           address[:phone_number]            unless address[:phone_number].blank?
           xml.tag! 'email',                 options[:email]
           xml.tag! 'driversLicenseNumber',  options[:drivers_license_number]  unless options[:drivers_license_number].blank?
           xml.tag! 'driversLicenseState',   options[:drivers_license_state]   unless options[:drivers_license_state].blank?
@@ -584,7 +593,12 @@ module ActiveMerchant #:nodoc:
       # Contact CyberSource, make the SOAP request, and parse the reply into a
       # Response object
       def commit(request, options)
-        response = parse(ssl_post(test? ? self.test_url : self.live_url, build_request(request, options)))
+        debugger
+
+        request_build   = build_request(request, options)
+        post_url        = test? ? self.test_url : self.live_url
+        post_response   = ssl_post(post_url, request_build)
+        response        = parse(post_response)
 
         success = response[:decision] == "ACCEPT"
         message = @@response_codes[('r' + response[:reasonCode]).to_sym] rescue response[:message]

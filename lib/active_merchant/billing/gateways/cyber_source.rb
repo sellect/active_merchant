@@ -31,7 +31,9 @@ module ActiveMerchant #:nodoc:
       self.test_url = 'https://ics2wstest.ic3.com/commerce/1.x/transactionProcessor'
       self.live_url = 'https://ics2ws.ic3.com/commerce/1.x/transactionProcessor'
 
-      XSD_VERSION = "1.69"
+      # NOTE: version updated from (v1.69) based on CyberSource Tech Rep (see versions: https://ics2ws.ic3.com/commerce/1.x/transactionProcessor/)
+      XSD_VERSION = "1.101"
+
 
       # visa, master, american_express, discover
       self.supported_cardtypes = [:visa, :master, :american_express, :discover]
@@ -121,16 +123,11 @@ module ActiveMerchant #:nodoc:
         requires!(options,  :order_id)
         setup_address_hash(options)
         request = build_auth_request(money, creditcard_or_reference, options)
-        puts "AUTHORIZE REQUEST"
-        puts request
         commit(request, options )
       end
 
       def auth_reversal(money, identification, options = {})
         request = build_auth_reversal_request(money, identification, options)
-
-        puts "AUTH REVERSAL"
-        puts request.inspect
         commit(request, options)
       end
 
@@ -242,7 +239,6 @@ module ActiveMerchant #:nodoc:
         xml = Builder::XmlMarkup.new :indent => 2
         #add_address(xml, creditcard_or_reference, options[:shipping_address], options, true)
         add_payment_method_or_subscription(xml, money, creditcard_or_reference, options)
-        #add_line_item_data(xml, options)
         add_auth_service(xml)
         add_business_rules_data(xml)
         xml.target!
@@ -550,6 +546,7 @@ module ActiveMerchant #:nodoc:
 
       def add_payment_method_or_subscription(xml, money, payment_method_or_reference, options)
         if payment_method_or_reference.is_a?(String)
+          add_line_item_data(xml, options)
           add_purchase_data(xml, money, true, options)
           add_subscription(xml, options, payment_method_or_reference)
         elsif card_brand(payment_method_or_reference) == 'check'
@@ -558,6 +555,8 @@ module ActiveMerchant #:nodoc:
           add_check(xml, payment_method_or_reference)
         else
           add_address(xml, payment_method_or_reference, options[:billing_address], options)
+          add_address(xml, payment_method_or_reference, options[:shipping_address], options, true)
+          add_line_item_data(xml, options)
           add_purchase_data(xml, money, true, options)
           add_creditcard(xml, payment_method_or_reference)
         end

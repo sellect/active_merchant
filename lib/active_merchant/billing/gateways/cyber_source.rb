@@ -237,7 +237,6 @@ module ActiveMerchant #:nodoc:
 
       def build_auth_request(money, creditcard_or_reference, options)
         xml = Builder::XmlMarkup.new :indent => 2
-        #add_address(xml, creditcard_or_reference, options[:shipping_address], options, true)
         add_payment_method_or_subscription(xml, money, creditcard_or_reference, options)
         add_auth_service(xml)
         add_business_rules_data(xml)
@@ -592,8 +591,6 @@ module ActiveMerchant #:nodoc:
       # Contact CyberSource, make the SOAP request, and parse the reply into a
       # Response object
       def commit(request, options)
-        debugger
-
         request_build   = build_request(request, options)
         post_url        = test? ? self.test_url : self.live_url
         post_response   = ssl_post(post_url, request_build)

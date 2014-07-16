@@ -72,6 +72,9 @@ module ActiveMerchant #:nodoc:
       # * <tt>:password</tt> -- The Authorize.Net Transaction Key. (REQUIRED)
       # * <tt>:test</tt> -- +true+ or +false+. If true, perform transactions against the test server.
       #   Otherwise, perform transactions against the production server.
+      # * <tt>:test_requests</tt> -- +true+ or +false+. If true, perform transactions without the
+      #   test flag. This is useful when you need to generate card declines, AVS or CVV erros.
+      #   Will hold the same value as :test by default.
       def initialize(options = {})
         requires!(options, :login, :password)
         super
@@ -266,8 +269,8 @@ module ActiveMerchant #:nodoc:
       def commit(action, money, parameters)
         parameters[:amount] = amount(money) unless action == 'VOID'
 
-        # Only activate the test_request when the :test option is passed in
-        parameters[:test_request] = @options[:test] ? 'TRUE' : 'FALSE'
+        # Only activate the test_request when the :test_requests option is passed in
+        parameters[:test_request] = @options[:test_requests] ? 'TRUE' : 'FALSE'
 
         url = test? ? self.test_url : self.live_url
         data = ssl_post url, post_data(action, parameters)

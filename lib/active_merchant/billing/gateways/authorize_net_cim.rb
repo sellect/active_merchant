@@ -101,7 +101,9 @@ module ActiveMerchant #:nodoc:
       def initialize(options = {})
         requires!(options, :login, :password)
         super
-        @options[:test_requests] = test? if @options[:test_requests].nil?
+        
+        # NOTE: set @options[:test_requests] instead of setting to test? value
+        #@options[:test_requests] = test? if @options[:test_requests].nil?
       end
 
       # Creates a new customer profile along with any customer payment profiles and customer shipping addresses

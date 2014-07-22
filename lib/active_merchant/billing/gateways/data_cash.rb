@@ -18,11 +18,10 @@ module ActiveMerchant
 
       # Datacash server URLs
       
-      # Email from datacash suggests URL should be '...accreditation.datacash...'
-      #self.test_url = 'https://testserver.datacash.com/Transaction'
-      self.test_url = 'https://accreditation.datacash.com/Transaction/cnp_a'
-
-      self.live_url = 'https://mars.transaction.datacash.com/Transaction'
+      # Email from datacash suggests URL should be '...accreditation.datacash...' for fraud rules testing
+      self.test_url           = 'https://testserver.datacash.com/Transaction'
+      self.accreditation_url  = 'https://accreditation.datacash.com/Transaction/cnp_a'
+      self.live_url           = 'https://mars.transaction.datacash.com/Transaction'
 
       # Different Card Transaction Types
       AUTH_TYPE = 'auth'
@@ -53,7 +52,19 @@ module ActiveMerchant
       #
       def initialize(options = {})
         requires!(options, :login, :password)
+        set_test_url(options)
         super
+      end
+
+      # 
+      # Use the Accreditation url for Fraud Testing
+      # 
+      # if you are testing fraud rules etc with an accrediation account
+      # pass in options[:test_accreditation_mode] so the correct
+      # accreditation_url will be used in the requests
+      #
+      def set_test_url(options = {})
+        self.test_url = self.accreditation_url if options[:test_accreditation_mode].present?
       end
 
       # Perform a purchase, which is essentially an authorization and capture in a single operation.

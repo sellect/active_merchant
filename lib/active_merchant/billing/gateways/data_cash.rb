@@ -159,8 +159,15 @@ module ActiveMerchant
       end
 
       def tokenize(options = {})
-        credit_card = options[:profile][:payment_profile][:payment][:credit_card]
-        tokenize_request = build_tokenize_request(credit_card, options[:profile][:merchant_customer_id])
+        credit_card       = options[:profile][:payment_profiles][:payment][:credit_card]
+
+        # 
+        # Because we pre_auth with options[:profile][:merchant_customer_id],
+        # Data Cash will throw a duplicate reference error without an additional random string at the end
+        #
+        rand_id           = "#{options[:profile][:merchant_customer_id]}#{Array.new(9) { rand(9) }.join}"
+        tokenize_request  = build_tokenize_request(credit_card, rand_id)
+        
         commit(tokenize_request)
       end
 

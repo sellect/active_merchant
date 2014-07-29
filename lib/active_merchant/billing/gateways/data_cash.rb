@@ -202,22 +202,24 @@ module ActiveMerchant
 
         options = {billing_address: billing_address, order_id: order_id, profile: options[:profile], email: email, ip_address: ip}
 
-        # first do an auth for 0.01
-        pre_auth_request = build_purchase_or_authorization_request_with_credit_card_request('pre', 1, credit_card, options)
+        # # first do an auth for 0.01
+        # pre_auth_request = build_purchase_or_authorization_request_with_credit_card_request('pre', 1, credit_card, options)
 
-        # execute and record results
-        preauth = commit(pre_auth_request)
+        # # execute and record results
+        # preauth = commit(pre_auth_request)
 
-        # then void it -- NB: you'd imagine you'd only void a successful pre
-        # auth, but it appears that you have to void all, to reset. weird.
+        # # then void it -- NB: you'd imagine you'd only void a successful pre
+        # # auth, but it appears that you have to void all, to reset. weird.
 
-        if preauth.success?
-          void_request = build_void_or_capture_request(CANCEL_TYPE, 1, preauth.authorization, {order_id: nil})
-          voided       = commit(void_request)
-          profile      = tokenize(options)
-        else
-          preauth
-        end
+        # if preauth.success?
+        #   void_request = build_void_or_capture_request(CANCEL_TYPE, 1, preauth.authorization, {order_id: nil})
+        #   voided       = commit(void_request)
+        #   profile      = tokenize(options)
+        # else
+        #   preauth
+        # end
+
+        profile      = tokenize(options)
       end
 
       private

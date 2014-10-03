@@ -2,7 +2,7 @@ module ActiveMerchant #:nodoc:
   module Billing #:nodoc:
     # Bogus Gateway
     class BogusGateway < Gateway
-      AUTHORIZATION = '53433'
+      AUTHORIZATION = '534331'
 
       SUCCESS_MESSAGE = "Bogus Gateway: Forced success"
       FAILURE_MESSAGE = "Bogus Gateway: Forced failure"
@@ -98,7 +98,8 @@ module ActiveMerchant #:nodoc:
       def void(reference, options = {})
         case reference
         when /1$/
-          raise Error, VOID_ERROR_MESSAGE
+          #raise Error, VOID_ERROR_MESSAGE
+          Response.new(true, SUCCESS_MESSAGE, {:authorization => reference}, :test => true)
         when /2$/
           Response.new(false, FAILURE_MESSAGE, {:authorization => reference, :error => FAILURE_MESSAGE }, :test => true)
         else

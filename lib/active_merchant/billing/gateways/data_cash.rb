@@ -17,8 +17,11 @@ module ActiveMerchant
       self.display_name = 'DataCash'
 
       # Datacash server URLs
-      self.test_url = 'https://testserver.datacash.com/Transaction'
-      self.live_url = 'https://mars.transaction.datacash.com/Transaction'
+      
+      # Email from datacash suggests URL should be '...accreditation.datacash...' for fraud rules testing
+      self.test_url           = 'https://testserver.datacash.com/Transaction'
+      self.accreditation_url  = 'https://accreditation.datacash.com/Transaction/cnp_a'
+      self.live_url           = 'https://mars.transaction.datacash.com/Transaction'
 
       # Different Card Transaction Types
       AUTH_TYPE = 'auth'
@@ -49,7 +52,19 @@ module ActiveMerchant
       #
       def initialize(options = {})
         requires!(options, :login, :password)
+        set_test_url(options)
         super
+      end
+
+      # 
+      # Use the Accreditation url for Fraud Testing
+      # 
+      # if you are testing fraud rules etc with an accrediation account
+      # pass in options[:test_accreditation_mode] so the correct
+      # accreditation_url will be used in the requests
+      #
+      def set_test_url(options = {})
+        self.test_url = self.accreditation_url if options[:test_accreditation_mode].present?
       end
 
       # Perform a purchase, which is essentially an authorization and capture in a single operation.
@@ -154,48 +169,40 @@ module ActiveMerchant
         commit(build_transaction_refund_request(money, reference))
       end
 
-      def create_customer_profile(options = {})
-        # bullshit no-auth tokenization crap
-        credit_card = options[:profile][:payment_profiles][:payment][:credit_card]
+      def tokenize(options = {})
+        credit_card       = options[:profile][:payment_profiles][:payment][:credit_card]
 
-        tokenize_request = build_tokenize_request(credit_card, options[:profile][:merchant_customer_id])
-
-        puts "TOKENIZE REQUEST"
-        puts tokenize_request
-
+        # 
+        # Because we pre_auth with options[:profile][:merchant_customer_id],
+        # Data Cash will throw a duplicate reference error without an additional random string at the end
+        #
+        rand_id           = "#{options[:profile][:merchant_customer_id]}#{Array.new(9) { rand(9) }.join}"
+        tokenize_request  = build_tokenize_request(credit_card, rand_id)
+        
         commit(tokenize_request)
       end
 
-      def create_customer_profile_with_preauth(options = {})
+      def update_customer_profile(options = {})
+        token                = options[:profile][:token]
+        merchant_customer_id = options[:profile][:merchant_customer_id]
+        tokenize_request     = build_tokenize_request(token, merchant_customer_id)
+        commit(tokenize_request)
+      end
+
+      def create_customer_profile(options = {})
         requires!(options, :profile)
         requires!(options[:profile], :email) unless options[:profile][:merchant_customer_id] || options[:profile][:description]
         requires!(options[:profile], :merchant_customer_id) unless options[:profile][:description] || options[:profile][:email]
 
-        credit_card = options[:profile][:payment_profiles][:payment][:credit_card]
+        credit_card     = options[:profile][:payment_profiles][:payment][:credit_card]
         billing_address = options[:profile][:payment_profiles][:bill_to]
-        order_id = options[:profile][:merchant_customer_id]
-        email = options[:profile][:email]
-        ip = options[:profile][:ip_address]
+        order_id        = options[:profile][:merchant_customer_id]
+        email           = options[:profile][:email]
+        ip              = options[:profile][:ip_address]
 
         options = {billing_address: billing_address, order_id: order_id, profile: options[:profile], email: email, ip_address: ip}
 
-        # first do an auth for 0.01
-        pre_auth_request = build_purchase_or_authorization_request_with_credit_card_request('pre', 1, credit_card, options)
-
-        # execute and record results
-        preauth = commit(pre_auth_request)
-
-        # then void it -- NB: you'd imagine you'd only void a successful pre
-        # auth, but it appears that you have to void all, to reset. weird.
-
-        if preauth.success?
-          void_request = build_void_or_capture_request(CANCEL_TYPE, 1, preauth.authorization, {order_id: nil})
-          voided = commit(void_request)
-        end
-        # ap voided.params
-
-        # then return
-        return preauth
+        profile      = tokenize(options)
       end
 
       private
@@ -248,6 +255,7 @@ module ActiveMerchant
               xml.tag! :TxnDetails do
                 xml.tag! :merchantreference, format_reference_number(options[:order_id]) unless options[:order_id].nil?
                 xml.tag! :amount, amount(money), :currency => options[:currency] || currency(money)
+                xml.tag! :capturemethod, 'ecomm'
               end
             end
           end
@@ -269,6 +277,9 @@ module ActiveMerchant
       #      <merchantreference>123456</merchantreference>
       #      <amount currency="EUR">10.00</amount>
       #    </TxnDetails>
+      #
+      #      <!-- ADDITIONAL REALTIME FRAUD SCREENING - see add_fraud_rules below -->
+      #
       #    <CardTxn>
       #      <Card>
       #        <pan>4444********1111</pan>
@@ -330,9 +341,15 @@ module ActiveMerchant
             xml.tag! :TxnDetails do
               xml.tag! :merchantreference, format_reference_number(options[:order_id])
               xml.tag! :amount, amount(money), :currency => options[:currency] || currency(money)
-              xml.tag! :Order do
-                add_customer_profile(xml, options[:email], options[:ip_address])
+              
+              # NOTE: Datacash will complain if these params are present at the same time as the fraud fields 
+              unless options[:perform_fraud_check]
+                xml.tag! :Order do
+                  add_customer_profile(xml, options[:email], options[:ip_address])
+                end
               end
+              
+              add_fraud_fields(xml, options)
             end
           end
         end
@@ -352,6 +369,9 @@ module ActiveMerchant
       #    <TxnDetails>
       #      <merchantreference>123456</merchantreference>
       #      <amount currency="EUR">10.00</amount>
+      #
+      #      <!-- ADDITIONAL REALTIME FRAUD SCREENING - see add_fraud_rules below -->
+      #
       #    </TxnDetails>
       #    <CardTxn>
       #      <Card>
@@ -417,9 +437,15 @@ module ActiveMerchant
             xml.tag! :TxnDetails do
               xml.tag! :merchantreference, format_reference_number(options[:order_id])
               xml.tag! :amount, amount(money), :currency => options[:currency] || currency(money)
-              xml.tag! :Order do
-                add_customer_profile(xml, options[:email], options[:ip_address])
+
+              # NOTE: Datacash will complain if these params are present at the same time as the fraud fields
+              unless options[:perform_fraud_check]
+                xml.tag! :Order do
+                  add_customer_profile(xml, options[:email], options[:ip_address])
+                end
               end
+              
+              add_fraud_fields(xml, options)
             end
           end
         end
@@ -489,6 +515,7 @@ module ActiveMerchant
       # Final XML should look like...
       #
       def build_tokenize_request(credit_card, merch_ref)
+        retokenize = credit_card.is_a?(String)
         xml = Builder::XmlMarkup.new :indent => 2
         xml.instruct!
         xml.tag! :Request do
@@ -496,9 +523,13 @@ module ActiveMerchant
 
           xml.tag! :Transaction do
             xml.tag! :TokenizeTxn do
-              xml.tag! :method, 'tokenize'
+              xml.tag! :method, retokenize ? 'retokenize' : 'tokenize'
               xml.tag! :Card do
-                xml.tag! :pan, credit_card.number
+                if retokenize
+                  xml.tag! :pan, credit_card, :type => "token"
+                else
+                  xml.tag! :pan, credit_card.number
+                end
               end
             end
             xml.tag! :TxnDetails do
@@ -747,6 +778,144 @@ module ActiveMerchant
         end
       end
 
+      # add fraud rules
+      # <The3rdMan type="realtime">
+      #   <!-- read section 2.4.7.1 for these fields -->
+      #   <CustomerInformation>...</CustomerInformation>
+      #   <DeliveryAddress>...</DeliveryAddress>
+      #   <BillingAddress>...</BillingAddresss>
+      #   <OrderInformation>...</OrderInformation>
+      # </The3rdMan>
+      def add_fraud_fields(xml, options)
+        return unless options[:perform_fraud_check]
+        xml.tag! :The3rdMan, type: "realtime" do
+          add_customer_information(xml, options)
+          add_delivery_address(xml, options[:shipping_address])
+          add_billing_address(xml, options[:billing_address])
+          add_order_information(xml, options[:order])
+          add_realtime_fields(xml, options[:realtime])
+        end
+      end
+
+      # <CustomerInformation>
+      #    <customer_reference>CUSTREF000001</customer_reference>
+      #    <delivery_forename>Alice</delivery_forename>
+      #    <delivery_surname>Smith</delivery_surname>
+      #    <delivery_phone_number>0131 123 1234</delivery_phone_number>
+      #    <email>jsmith@devnull.co.uk</email>
+      #    <first_purchase_date>2004-02-21</first_purchase_date>
+      #    <forename>John</forename>
+      #    <surname>Smith</surname>
+      #    <ip_address>192.168.0.1</ip_address>
+      #    <order_number>R123123123</order_number>
+      #    <previous_purchases count="5" value="58.94"/>
+      #    <sales_channel>3</sales_channel>
+      #    <telephone>0131 123 1234</telephone>
+      # </CustomerInformation>
+      #
+      def add_customer_information(xml, options)
+        customer = options[:customer]
+        billing  = options[:billing_address]
+        shipping = options[:shipping_address]
+        xml.tag! :CustomerInformation do
+          # xml.tag! :customer_reference,    customer[:reference] # OPTIONAL: I think, based on 2.4.7.1.2
+          xml.tag! :first_purchase_date,   customer[:first_purchase_date]
+          xml.tag! :delivery_forename,     shipping[:first_name]
+          xml.tag! :delivery_surname,      shipping[:last_name]
+          xml.tag! :delivery_phone_number, shipping[:phone_number]
+          xml.tag! :email,                 options[:email]
+          xml.tag! :forename,              billing[:first_name]
+          xml.tag! :surname,               billing[:last_name]
+          xml.tag! :telephone,             billing[:phone_number]
+          xml.tag! :ip_address,            options[:ip_address]
+          xml.tag! :order_number,          options[:order_number]
+          xml.tag! :sales_channel,         "3" # hardcoded to "Internet", see 2.4.7.1.2 CustomerInformation for more
+          xml.tag! :previous_purchases, {count: customer[:purchases][:count], value: customer[:purchases][:value]}
+        end
+      end
+
+      # <DeliveryAddress>
+      #    <city>London</city>
+      #    <county>London</county>
+      #    <country>826</country>
+      #    <forename>Adam</forname>
+      #    <surname>Smith</surname>
+      #    <postcode>AB1 2CD</postcode>
+      #    <street_address_1>10 Stratford Road</street_address_1>
+      #    <street_address_2>Windsor</street_address_2>
+      # </DeliveryAddress>
+      def add_delivery_address(xml, shipping)
+        xml.tag! :DeliveryAddress do
+          xml.tag! :city,             shipping[:city]
+          xml.tag! :county,           shipping[:state]
+          xml.tag! :country,          shipping[:country]
+          xml.tag! :postcode,         shipping[:zip]
+          xml.tag! :street_address_1, shipping[:address1]
+          xml.tag! :street_address_2, shipping[:address2]
+        end
+      end
+
+      # <BillingAddress>
+      #    <city>London</city>
+      #    <county>London</county>
+      #    <country>826</country>
+      #    <postcode>AB1 2CD</postcode>
+      #    <street_address_1>10 Stratford Road</street_address_1>
+      #    <street_address_2>Windsor</street_address_2>
+      # </BillingAddresss>
+      def add_billing_address(xml, billing)
+        xml.tag! :BillingAddress do
+          xml.tag! :city,             billing[:city]
+          xml.tag! :county,           billing[:state]
+          xml.tag! :country,          billing[:country]
+          xml.tag! :postcode,         billing[:zip]
+          xml.tag! :street_address_1, billing[:address1]
+          xml.tag! :street_address_2, billing[:address2]
+        end
+      end
+
+      # <OrderInformation>
+      #    <distribution_channel>First Class Post</distribution_channel>
+      #    <gift_message>For someone special</gift_message>
+      #    <Products count="1">...</Products>
+      # </OrderInformation>
+      def add_order_information(xml, order_info)
+        xml.tag! :OrderInformation do
+          xml.tag! :distribution_channel, order_info[:shipping_method]
+          xml.tag! :gift_message,         order_info[:gift_message]
+          add_products(xml, order_info[:products])
+        end
+      end
+
+      # <Products count="1">
+      #   <Product>
+      #     <code>Sku123123</code>
+      #     <prod_id>125</prod_id>
+      #     <quantity>1</quantity>
+      #     <price>22.99</price>
+      #   </Product>
+      # </Products>
+      def add_products(xml, products)
+        xml.tag! :Products, {count: products.first[:count] } do
+          products.each do |product|
+            xml.tag! :Product do
+              xml.tag! :code,     product[:sku]
+              xml.tag! :prod_id,  product[:id]
+              xml.tag! :quantity, product[:quantity]
+              xml.tag! :price,    product[:price]
+            end
+          end
+        end
+      end
+
+      def add_realtime_fields(xml, realtime)
+        xml.tag! :Realtime do
+          xml.tag! :real_time_callback_format, realtime[:callback_format]
+          xml.tag! :real_time_callback, realtime[:callback_url]
+          xml.tag! :real_time_callback_options, realtime[:callback_options]
+        end
+      end
+
       # Send the passed data to DataCash for processing
       #
       # Parameters:
@@ -761,10 +930,12 @@ module ActiveMerchant
 
         cvv_result = CVVResult.new(response[:cv2_result_response], true)
 
-        Response.new(response[:status] == DATACASH_SUCCESS, response[:reason], response,
+        Response.new(response[:status] == DATACASH_SUCCESS, 
+          response[:reason], response,
           :test => test?,
           :authorization => "#{response[:datacash_reference]};#{response[:authcode]};#{response[:ca_reference]}",
-          :cvv_result => cvv_result
+          :cvv_result => cvv_result,
+          :fraud_review => response[:recommendation]
         )
       end
 

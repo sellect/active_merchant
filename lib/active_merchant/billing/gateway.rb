@@ -93,7 +93,7 @@ module ActiveMerchant #:nodoc:
       class_attribute :homepage_url
       class_attribute :display_name
 
-      class_attribute :test_url, :live_url
+      class_attribute :test_url, :live_url, :accreditation_url
 
       class_attribute :abstract_class
 

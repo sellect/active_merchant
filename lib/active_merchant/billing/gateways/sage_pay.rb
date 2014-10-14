@@ -72,7 +72,6 @@ module ActiveMerchant #:nodoc:
 
       def authorize(money, credit_card, options = {})
         requires!(options, :order_id)
-
         post = {}
 
         add_amount(post, money, options)
@@ -165,9 +164,8 @@ module ActiveMerchant #:nodoc:
 
       def add_address(post, options)
         if billing_address = options[:billing_address] || options[:address]
-          first_name, last_name = parse_first_and_last_name(billing_address[:name])
-          add_pair(post, :BillingSurname, last_name)
-          add_pair(post, :BillingFirstnames, first_name)
+          add_pair(post, :BillingSurname, billing_address[:last_name])
+          add_pair(post, :BillingFirstnames, billing_address[:first_name])
           add_pair(post, :BillingAddress1, billing_address[:address1])
           add_pair(post, :BillingAddress2, billing_address[:address2])
           add_pair(post, :BillingCity, billing_address[:city])
@@ -177,9 +175,8 @@ module ActiveMerchant #:nodoc:
         end
 
         if shipping_address = options[:shipping_address] || billing_address
-          first_name, last_name = parse_first_and_last_name(shipping_address[:name])
-          add_pair(post, :DeliverySurname, last_name)
-          add_pair(post, :DeliveryFirstnames, first_name)
+          add_pair(post, :DeliverySurname, shipping_address[:last_name])
+          add_pair(post, :DeliveryFirstnames, shipping_address[:first_name])
           add_pair(post, :DeliveryAddress1, shipping_address[:address1])
           add_pair(post, :DeliveryAddress2, shipping_address[:address2])
           add_pair(post, :DeliveryCity, shipping_address[:city])
@@ -237,7 +234,10 @@ module ActiveMerchant #:nodoc:
       end
 
       def commit(action, parameters)
-        response = parse( ssl_post(url_for(action), post_data(action, parameters)) )
+        data          = post_data(action, parameters)
+        url           = url_for(action)
+        post_request  = ssl_post(url, data)
+        response      = parse( post_request )
 
         Response.new(response["Status"] == APPROVED, message_from(response), response,
           :test => test?,
@@ -281,7 +281,7 @@ module ActiveMerchant #:nodoc:
         response['Status'] == APPROVED ? 'Success' : (response['StatusDetail'] || 'Unspecified error')    # simonr 20080207 can't actually get non-nil blanks, so this is shorter
       end
 
-      def post_data(action, parameters = {})
+      def post_data(action, parameters = {})        
         parameters.update(
           :Vendor => @options[:login],
           :TxType => TRANSACTIONS[action],
@@ -321,4 +321,3 @@ module ActiveMerchant #:nodoc:
     end
   end
 end
-

@@ -316,7 +316,8 @@ module ActiveMerchant #:nodoc:
       end
 
       def commit(params, use_profile_api = false)
-        post(post_data(params,use_profile_api),use_profile_api)
+        use_profile_api = @options[:secure_profile_api_key].present?
+        post( post_data(params, use_profile_api), use_profile_api )
       end
 
       def recurring_commit(params)
@@ -390,4 +391,3 @@ module ActiveMerchant #:nodoc:
     end
   end
 end
-

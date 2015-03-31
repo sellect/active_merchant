@@ -18,7 +18,8 @@ module ActiveMerchant #:nodoc:
         :authorization => 'DEFERRED',
         :capture => 'RELEASE',
         :void => 'VOID',
-        :abort => 'ABORT'
+        :abort => 'ABORT',
+        :direct3dcallback => 'DIRECT3DCALLBACK'
       }
 
       CREDIT_CARDS = {
@@ -82,6 +83,16 @@ module ActiveMerchant #:nodoc:
         add_optional_data(post, options)
 
         commit(:authorization, post)
+      end
+
+      def submit_3D_response(md, pares, options = {})
+        post = {}
+
+        add_pair(post, :MD, md)
+        add_pair(post, :PARes, pares)
+        add_optional_data(post, options)
+
+        commit(:direct3dcallback, post)
       end
 
       # You can only capture a transaction once, even if you didn't capture the full amount the first time.
@@ -281,11 +292,15 @@ module ActiveMerchant #:nodoc:
         response['Status'] == APPROVED ? 'Success' : (response['StatusDetail'] || 'Unspecified error')    # simonr 20080207 can't actually get non-nil blanks, so this is shorter
       end
 
+      def tx_type(action)
+        action == :direct3dcallback ? 'DEFERRED' : TRANSACTIONS[action]
+      end
+
       def post_data(action, parameters = {})        
         parameters.update(
           :Vendor => @options[:login],
-          :TxType => TRANSACTIONS[action],
-          :VPSProtocol => "2.23"
+          :TxType => tx_type(action),
+          :VPSProtocol => "3.00"
         )
 
         parameters.collect { |key, value| "#{key}=#{CGI.escape(value.to_s)}" }.join("&")

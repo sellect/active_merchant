@@ -75,11 +75,11 @@ module ActiveMerchant #:nodoc:
         money = amount(money)
         case reference
         when /1$/
-          raise Error, REFUND_ERROR_MESSAGE
+          Response.new(true, SUCCESS_MESSAGE, {:paid_amount => money}, :test => true)
         when /2$/
           Response.new(false, FAILURE_MESSAGE, {:paid_amount => money, :error => FAILURE_MESSAGE }, :test => true)
         else
-          Response.new(true, SUCCESS_MESSAGE, {:paid_amount => money}, :test => true)
+          raise Error, REFUND_ERROR_MESSAGE
         end
       end
 
@@ -87,11 +87,11 @@ module ActiveMerchant #:nodoc:
         money = amount(money)
         case reference
         when /1$/
-          raise Error, CAPTURE_ERROR_MESSAGE
+          Response.new(true, SUCCESS_MESSAGE, {:paid_amount => money}, :test => true)
         when /2$/
           Response.new(false, FAILURE_MESSAGE, {:paid_amount => money, :error => FAILURE_MESSAGE }, :test => true)
         else
-          Response.new(true, SUCCESS_MESSAGE, {:paid_amount => money}, :test => true)
+          raise Error, CAPTURE_ERROR_MESSAGE
         end
       end
 

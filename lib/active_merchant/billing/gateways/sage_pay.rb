@@ -159,7 +159,8 @@ module ActiveMerchant #:nodoc:
 
       # doesn't actually use the currency -- dodgy!
       def add_release_amount(post, money, options)
-        add_pair(post, :ReleaseAmount, amount(money), :required => true)
+        currency = options[:currency] || currency(money)
+        add_pair(post, :ReleaseAmount, localized_amount(money, currency), :required => true)
       end
 
       def add_customer_data(post, options)

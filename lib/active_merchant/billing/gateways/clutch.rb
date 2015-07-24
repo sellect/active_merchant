@@ -24,8 +24,13 @@ module ActiveMerchant #:nodoc:
         super
       end
 
-      def authorize(money, paysource, options = {})
-
+      def authorize(amount, identification, options = {})
+        post = {}
+        add_single_card(post, identification)
+        add_currency_balance(post, amount, options)
+        add_return_balances(post)
+        add_action(post, :hold)
+        commit(:post, "updateBalance", post)
       end
 
       def allocate_from_set(set, options = {})

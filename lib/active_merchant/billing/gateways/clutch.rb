@@ -20,17 +20,54 @@ module ActiveMerchant #:nodoc:
         @brand_id     = options[:brand_id]
         @location     = options[:location]
         @terminal     = options[:terminal]
-
+        @require_pin  = options[:require_pin]
         super
       end
 
-      def authorize(amount, identification, options = {})
+      def authorize(identification, amount, options = {})
         post = {}
         add_single_card(post, identification)
-        add_currency_balance(post, amount, options)
-        add_return_balances(post)
         add_action(post, :hold)
+        add_currency_balance(post, amount, options)
+        add_pin_validation(post, options[:pin]) if options[:require_pin]
+        add_return_balances(post)
         commit(:post, "updateBalance", post)
+      end
+
+      def capture(identification, amount, authorization, options = {})
+        post = {}
+        add_single_card(post, identification)
+        add_action(post, :redeem)
+        add_currency_balance(post, amount, options)
+        add_redeem_transaction_id(post, authorization)
+        add_release_hold_remainder(post)
+        add_return_balances(post)
+        commit(:post, "updateBalance", post)
+      end
+
+      def void(identification, authorization, options = {})
+        post = {}
+        add_single_card(post, identification)
+        add_action(post, :redeem)
+        add_currency_balance(post, 0, options)
+        add_redeem_transaction_id(post, authorization)
+        add_release_hold_remainder(post)
+        add_return_balances(post)
+        commit(:post, "updateBalance", post)
+      end
+
+      def add_pin_validation(post, pin)
+        post["forcePinValidation"] = true
+        post["pin"] = pin.try(:to_s)
+      end
+      
+
+      def add_redeem_transaction_id(post, authorization)
+        post["redeemFromHoldTransactionId"] = authorization.try(:to_s)
+      end
+
+      def add_release_hold_remainder(post)
+        post["releaseHoldRemainder"] =  true
       end
 
       def allocate_from_set(set, options = {})
@@ -62,6 +99,7 @@ module ActiveMerchant #:nodoc:
       def get_card(identification, options = {})
         post = {}
         add_single_card_search(post, identification)
+        add_pin_validation(post, options[:pin]) if options[:require_pin]
         commit(:post, "search", post)
       end
 
@@ -71,7 +109,7 @@ module ActiveMerchant #:nodoc:
       end
 
       def add_single_card(post, identification)
-        post["cardNumber"] = identification
+        post["cardNumber"] = identification.try(:to_s)
       end
 
       def add_action(post, action)
@@ -82,7 +120,7 @@ module ActiveMerchant #:nodoc:
         post["amount"] = {
           "balanceType"   => "Currency",
           "balanceCode"   => options[:currency] || "USD",
-          "amount"        => amount
+          "amount"        => amount.try(:to_f)
         }
       end
 
@@ -135,10 +173,8 @@ module ActiveMerchant #:nodoc:
           request_body    = parameters.to_json
           request_headers = headers(options)
 
-          # puts "method: #{method}"
-          # puts "url: #{endpoint_url + url}"
-          # puts request_body.inspect
-          # puts request_headers.inspect
+          ap parameters
+          ap request_headers
 
           raw_response  = ssl_request(method, endpoint_url + url, request_body, request_headers)
           response      = parse(raw_response)

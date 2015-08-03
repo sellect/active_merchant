@@ -56,12 +56,25 @@ module ActiveMerchant #:nodoc:
         commit(:post, "updateBalance", post)
       end
 
+      def refund(identification, amount, options = {})
+        post = {}
+        add_single_card(post, identification)
+        add_action(post, :issue)
+        add_return_related(post)
+        add_currency_balance(post, amount, options)
+        add_return_balances(post)
+        commit(:post, "updateBalance", post)
+      end
+
+      def add_return_related(post)
+        post["isReturnRelated"] = true
+      end
+
       def add_pin_validation(post, pin)
         post["forcePinValidation"] = true
         post["pin"] = pin.try(:to_s)
       end
       
-
       def add_redeem_transaction_id(post, authorization)
         post["redeemFromHoldTransactionId"] = authorization.try(:to_s)
       end

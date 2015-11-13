@@ -20,13 +20,14 @@ module ActiveMerchant #:nodoc:
 
       def authorize(money, credit_card_or_reference, options = {})
         money = amount(money)
+
         case normalize(credit_card_or_reference)
         when /1$/
           Response.new(true, SUCCESS_MESSAGE, {:authorized_amount => money}, :test => true, :authorization => AUTHORIZATION )
         when /2$/
           Response.new(false, FAILURE_MESSAGE, {:authorized_amount => money, :error => FAILURE_MESSAGE }, :test => true)
         else
-          raise Error, ERROR_MESSAGE
+          Response.new(true, SUCCESS_MESSAGE, {:authorized_amount => money}, :test => true, :authorization => AUTHORIZATION )
         end
       end
 

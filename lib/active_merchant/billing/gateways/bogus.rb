@@ -27,7 +27,7 @@ module ActiveMerchant #:nodoc:
         when /2$/
           Response.new(false, FAILURE_MESSAGE, {:authorized_amount => money, :error => FAILURE_MESSAGE }, :test => true)
         else
-          Response.new(true, SUCCESS_MESSAGE, {:authorized_amount => money}, :test => true, :authorization => AUTHORIZATION )
+          raise Error, ERROR_MESSAGE
         end
       end
 
@@ -80,8 +80,7 @@ module ActiveMerchant #:nodoc:
         when /2$/
           Response.new(false, FAILURE_MESSAGE, {:paid_amount => money, :error => FAILURE_MESSAGE }, :test => true)
         else
-          Response.new(true, SUCCESS_MESSAGE, {:paid_amount => money}, :test => true)
-          # raise Error, REFUND_ERROR_MESSAGE
+          raise Error, REFUND_ERROR_MESSAGE
         end
       end
 
@@ -93,20 +92,18 @@ module ActiveMerchant #:nodoc:
         when /2$/
           Response.new(false, FAILURE_MESSAGE, {:paid_amount => money, :error => FAILURE_MESSAGE }, :test => true)
         else
-          Response.new(true, SUCCESS_MESSAGE, {:paid_amount => money}, :test => true)
-          # raise Error, CAPTURE_ERROR_MESSAGE
+          raise Error, CAPTURE_ERROR_MESSAGE
         end
       end
 
       def void(reference, options = {})
         case reference
         when /1$/
-          #raise Error, VOID_ERROR_MESSAGE
           Response.new(true, SUCCESS_MESSAGE, {:authorization => reference}, :test => true)
         when /2$/
           Response.new(false, FAILURE_MESSAGE, {:authorization => reference, :error => FAILURE_MESSAGE }, :test => true)
         else
-          Response.new(true, SUCCESS_MESSAGE, {:authorization => reference}, :test => true)
+          raise Error, VOID_ERROR_MESSAGE
         end
       end
 

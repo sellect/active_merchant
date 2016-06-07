@@ -10,6 +10,7 @@ rescue LoadError => e
 end
 
 require 'test/unit'
+require 'minitest'
 require 'money'
 require 'mocha/version'
 if(Mocha::VERSION.split(".")[1].to_i < 12)

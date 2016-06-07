@@ -12,7 +12,9 @@ class StripeTest < Test::Unit::TestCase
 
     @options = {
       :billing_address => address(),
-      :description => 'Test Purchase'
+      :description => 'Test Purchase',
+      :shipping_address => address(),
+      :ip => '10.0.0.1'
     }
   end
 
@@ -147,37 +149,37 @@ class StripeTest < Test::Unit::TestCase
   def test_add_creditcard_with_credit_card
     post = {}
     @gateway.send(:add_creditcard, post, @credit_card, {})
-    assert_equal @credit_card.number, post[:card][:number]
-    assert_equal @credit_card.month, post[:card][:exp_month]
-    assert_equal @credit_card.year, post[:card][:exp_year]
-    assert_equal @credit_card.verification_value, post[:card][:cvc]
-    assert_equal @credit_card.name, post[:card][:name]
+    assert_equal @credit_card.number, post[:source][:number]
+    assert_equal @credit_card.month, post[:source][:exp_month]
+    assert_equal @credit_card.year, post[:source][:exp_year]
+    assert_equal @credit_card.verification_value, post[:source][:cvc]
+    assert_equal @credit_card.name, post[:source][:name]
   end
 
   def test_add_creditcard_with_track_data
     post = {}
     @credit_card.stubs(:track_data).returns("Tracking data")
     @gateway.send(:add_creditcard, post, @credit_card, {})
-    assert_equal @credit_card.track_data, post[:card][:swipe_data]
-    assert_nil post[:card][:number]
-    assert_nil post[:card][:exp_year]
-    assert_nil post[:card][:exp_month]
-    assert_nil post[:card][:cvc]
-    assert_nil post[:card][:name]
+    assert_equal @credit_card.track_data, post[:source][:swipe_data]
+    assert_nil post[:source][:number]
+    assert_nil post[:source][:exp_year]
+    assert_nil post[:source][:exp_month]
+    assert_nil post[:source][:cvc]
+    assert_nil post[:source][:name]
   end
 
   def test_add_creditcard_with_token
     post = {}
     credit_card_token = "card_2iD4AezYnNNzkW"
     @gateway.send(:add_creditcard, post, credit_card_token, {})
-    assert_equal credit_card_token, post[:card]
+    assert_equal credit_card_token, post[:source]
   end
 
   def test_add_creditcard_with_token_and_track_data
     post = {}
     credit_card_token = "card_2iD4AezYnNNzkW"
     @gateway.send(:add_creditcard, post, credit_card_token, :track_data => "Tracking data")
-    assert_equal "Tracking data", post[:card][:swipe_data]
+    assert_equal "Tracking data", post[:source][:swipe_data]
   end
 
   def test_add_customer
@@ -217,14 +219,33 @@ class StripeTest < Test::Unit::TestCase
   end
 
   def test_add_address
-    post = {:card => {}}
+    post = {:source => {}}
     @gateway.send(:add_address, post, @options)
-    assert_equal @options[:billing_address][:zip], post[:card][:address_zip]
-    assert_equal @options[:billing_address][:state], post[:card][:address_state]
-    assert_equal @options[:billing_address][:address1], post[:card][:address_line1]
-    assert_equal @options[:billing_address][:address2], post[:card][:address_line2]
-    assert_equal @options[:billing_address][:country], post[:card][:address_country]
-    assert_equal @options[:billing_address][:city], post[:card][:address_city]
+    assert_equal @options[:billing_address][:zip],      post[:source][:address_zip]
+    assert_equal @options[:billing_address][:state],    post[:source][:address_state]
+    assert_equal @options[:billing_address][:address1], post[:source][:address_line1]
+    assert_equal @options[:billing_address][:address2], post[:source][:address_line2]
+    assert_equal @options[:billing_address][:country],  post[:source][:address_country]
+    assert_equal @options[:billing_address][:city],     post[:source][:address_city]
+  end
+
+  def test_add_shipping_address
+    post = {}
+    name = "#{@options[:shipping_address][:first_name]} #{@options[:shipping_address][:last_name]}"
+    @gateway.send(:add_shipping_address, post, @options)
+    assert_equal name,                                   post[:shipping][:name]
+    assert_equal @options[:shipping_address][:zip],      post[:shipping][:address][:postal_code]
+    assert_equal @options[:shipping_address][:state],    post[:shipping][:address][:state]
+    assert_equal @options[:shipping_address][:address1], post[:shipping][:address][:line1]
+    assert_equal @options[:shipping_address][:address2], post[:shipping][:address][:line2]
+    assert_equal @options[:shipping_address][:country],  post[:shipping][:address][:country]
+    assert_equal @options[:shipping_address][:city],     post[:shipping][:address][:city]
+  end
+
+  def test_add_metadata
+    post = {}
+    @gateway.send(:add_metadata, post, @options)
+    assert_equal @options[:ip], post[:metadata][:ip]
   end
 
   def test_ensure_does_not_respond_to_credit
@@ -249,16 +270,16 @@ class StripeTest < Test::Unit::TestCase
     stub_comms(@gateway, :ssl_request) do
       @gateway.purchase(@amount, @credit_card, @options)
     end.check_request do |method, endpoint, data, headers|
-      assert data =~ /card\[name\]/
-      assert data !~ /card\[swipe_data\]/
+      assert data =~ /source\[name\]/
+      assert data !~ /source\[swipe_data\]/
     end.respond_with(successful_purchase_response)
 
     stub_comms(@gateway, :ssl_request) do
       @credit_card.track_data = '%B378282246310005^LONGSON/LONGBOB^1705101130504392?'
       @gateway.purchase(@amount, @credit_card, @options)
     end.check_request do |method, endpoint, data, headers|
-      assert data !~ /card\[name\]/
-      assert data =~ /card\[swipe_data\]/
+      assert data !~ /source\[name\]/
+      assert data =~ /source\[swipe_data\]/
     end.respond_with(successful_purchase_response)
   end
 
@@ -266,7 +287,7 @@ class StripeTest < Test::Unit::TestCase
     stub_comms(@gateway, :ssl_request) do
       @gateway.purchase(@amount, @credit_card, @options)
     end.check_request do |method, endpoint, data, headers|
-      assert data =~ /card\[address_line1\]/
+      assert data =~ /source\[address_line1\]/
     end.respond_with(successful_purchase_response)
   end
 

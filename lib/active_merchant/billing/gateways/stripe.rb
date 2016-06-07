@@ -6,28 +6,29 @@ module ActiveMerchant #:nodoc:
       self.live_url = 'https://api.stripe.com/v1/'
 
       AVS_CODE_TRANSLATOR = {
-        'line1: pass, zip: pass' => 'Y',
-        'line1: pass, zip: fail' => 'A',
-        'line1: pass, zip: unchecked' => 'B',
-        'line1: fail, zip: pass' => 'Z',
-        'line1: fail, zip: fail' => 'N',
-        'line1: unchecked, zip: pass' => 'P',
+        'line1: pass, zip: pass'           => 'Y',
+        'line1: pass, zip: fail'           => 'A',
+        'line1: pass, zip: unchecked'      => 'B',
+        'line1: fail, zip: pass'           => 'Z',
+        'line1: fail, zip: fail'           => 'N',
+        'line1: unchecked, zip: pass'      => 'P',
         'line1: unchecked, zip: unchecked' => 'I'
       }
 
       CVC_CODE_TRANSLATOR = {
-        'pass' => 'M',
-        'fail' => 'N',
+        'pass'      => 'M',
+        'fail'      => 'N',
         'unchecked' => 'P'
       }
 
       self.supported_countries = %w(US CA GB AU IE FR NL BE DE ES)
-      self.default_currency = 'USD'
-      self.money_format = :cents
-      self.supported_cardtypes = [:visa, :master, :american_express, :discover, :jcb, :diners_club]
-
-      self.homepage_url = 'https://stripe.com/'
-      self.display_name = 'Stripe'
+      self.default_currency    = 'USD'
+      self.money_format        = :cents
+      self.supported_cardtypes = [
+        :visa, :master, :american_express, :discover, :jcb, :diners_club
+      ]
+      self.homepage_url        = 'https://stripe.com/'
+      self.display_name        = 'Stripe'
 
       def initialize(options = {})
         requires!(options, :login)
@@ -68,7 +69,7 @@ module ActiveMerchant #:nodoc:
       end
 
       def refund(money, identification, options = {})
-        post = {:amount => amount(money)}
+        post = {amount: amount(money)}
         commit_options = generate_meta(options)
 
         MultiResponse.run(:first) do |r|
@@ -91,8 +92,8 @@ module ActiveMerchant #:nodoc:
       def refund_application_fee(money, identification, options = {})
         return Response.new(false, "Application fee id could not be found") unless identification
 
-        post = {:amount => amount(money)}
-        options.merge!(:key => @fee_refund_api_key)
+        post = {amount: amount(money)}
+        options.merge!(key: @fee_refund_api_key)
 
         commit(:post, "application_fees/#{CGI.escape(identification)}/refund", post, options)
       end
@@ -101,7 +102,7 @@ module ActiveMerchant #:nodoc:
         post = {}
         add_creditcard(post, creditcard, options)
         post[:description] = options[:description]
-        post[:email] = options[:email]
+        post[:email]       = options[:email]
 
         path = if options[:customer]
           "customers/#{CGI.escape(options[:customer])}"
@@ -113,7 +114,7 @@ module ActiveMerchant #:nodoc:
       end
 
       def update(customer_id, creditcard, options = {})
-        options = options.merge(:customer => customer_id)
+        options = options.merge(customer: customer_id)
         store(creditcard, options)
       end
 
@@ -129,6 +130,8 @@ module ActiveMerchant #:nodoc:
         add_creditcard(post, creditcard, options)
         add_customer(post, creditcard, options)
         add_customer_data(post,options)
+        add_shipping_address(post, options)
+        add_metadata(post, options)
         post[:description] = options[:description] || options[:email]
         add_flags(post, options)
         add_application_fee(post, options)
@@ -136,7 +139,7 @@ module ActiveMerchant #:nodoc:
       end
 
       def add_amount(post, money, options)
-        post[:amount] = amount(money)
+        post[:amount]   = amount(money)
         post[:currency] = (options[:currency] || currency(money)).downcase
       end
 
@@ -145,23 +148,42 @@ module ActiveMerchant #:nodoc:
       end
 
       def add_customer_data(post, options)
-        metadata_options = [:description,:browser_ip,:user_agent,:referrer]
+        metadata_options = [:description, :browser_ip, :user_agent, :referrer]
         post.update(options.slice(*metadata_options))
 
-        post[:external_id] = options[:order_id]
+        post[:external_id]        = options[:order_id]
         post[:payment_user_agent] = "Stripe/v1 ActiveMerchantBindings/#{ActiveMerchant::VERSION}"
       end
 
       def add_address(post, options)
-        return unless post[:card] && post[:card].kind_of?(Hash)
+        return unless post[:source] && post[:source].kind_of?(Hash)
         if address = options[:billing_address] || options[:address]
-          post[:card][:address_line1] = address[:address1] if address[:address1]
-          post[:card][:address_line2] = address[:address2] if address[:address2]
-          post[:card][:address_country] = address[:country] if address[:country]
-          post[:card][:address_zip] = address[:zip] if address[:zip]
-          post[:card][:address_state] = address[:state] if address[:state]
-          post[:card][:address_city] = address[:city] if address[:city]
+          post[:source][:address_line1]   = address[:address1] if address[:address1]
+          post[:source][:address_line2]   = address[:address2] if address[:address2]
+          post[:source][:address_country] = address[:country]  if address[:country]
+          post[:source][:address_zip]     = address[:zip]      if address[:zip]
+          post[:source][:address_state]   = address[:state]    if address[:state]
+          post[:source][:address_city]    = address[:city]     if address[:city]
         end
+      end
+
+      def add_shipping_address(post, options)
+        post[:shipping], post[:shipping][:address] = {}, {}
+        if address = options[:shipping_address]
+          post[:shipping][:name]                  = "#{address[:first_name]} #{address[:last_name]}"
+          post[:shipping][:address][:line1]       = address[:address1] if address[:address1]
+          post[:shipping][:address][:line2]       = address[:address2] if address[:address2]
+          post[:shipping][:address][:country]     = address[:country]  if address[:country]
+          post[:shipping][:address][:postal_code] = address[:zip]      if address[:zip]
+          post[:shipping][:address][:state]       = address[:state]    if address[:state]
+          post[:shipping][:address][:city]        = address[:city]     if address[:city]
+        end
+      end
+
+      def add_metadata(post, options)
+        post[:metadata] = {
+          ip: options[:ip]
+        }
       end
 
       def add_creditcard(post, creditcard, options)
@@ -170,14 +192,14 @@ module ActiveMerchant #:nodoc:
           if creditcard.respond_to?(:track_data) && creditcard.track_data.present?
             card[:swipe_data] = creditcard.track_data
           else
-            card[:number] = creditcard.number
+            card[:number]    = creditcard.number
             card[:exp_month] = creditcard.month
-            card[:exp_year] = creditcard.year
-            card[:cvc] = creditcard.verification_value if creditcard.verification_value?
-            card[:name] = creditcard.name if creditcard.name
+            card[:exp_year]  = creditcard.year
+            card[:cvc]       = creditcard.verification_value if creditcard.verification_value?
+            card[:name]      = creditcard.name if creditcard.name
           end
 
-          post[:card] = card
+          post[:source] = card
           add_address(post, options)
         elsif creditcard.kind_of?(String)
           if options[:track_data]
@@ -185,7 +207,7 @@ module ActiveMerchant #:nodoc:
           else
             card = creditcard
           end
-          post[:card] = card
+          post[:source] = card
         end
       end
 
@@ -231,30 +253,30 @@ module ActiveMerchant #:nodoc:
       def headers(options = {})
         @@ua ||= JSON.dump({
           :bindings_version => ActiveMerchant::VERSION,
-          :lang => 'ruby',
-          :lang_version => "#{RUBY_VERSION} p#{RUBY_PATCHLEVEL} (#{RUBY_RELEASE_DATE})",
-          :platform => RUBY_PLATFORM,
-          :publisher => 'active_merchant',
-          :uname => (RUBY_PLATFORM =~ /linux|darwin/i ? `uname -a 2>/dev/null`.strip : nil)
+          :lang             => 'ruby',
+          :lang_version     => "#{RUBY_VERSION} p#{RUBY_PATCHLEVEL} (#{RUBY_RELEASE_DATE})",
+          :platform         => RUBY_PLATFORM,
+          :publisher        => 'active_merchant',
+          :uname            => (RUBY_PLATFORM =~ /linux|darwin/i ? `uname -a 2>/dev/null`.strip : nil)
         })
 
         key = options[:key] || @api_key
 
         {
-          "Authorization" => "Basic " + Base64.encode64(key.to_s + ":").strip,
-          "User-Agent" => "Stripe/v1 ActiveMerchantBindings/#{ActiveMerchant::VERSION}",
-          "X-Stripe-Client-User-Agent" => @@ua,
+          "Authorization"                 => "Basic " + Base64.encode64(key.to_s + ":").strip,
+          "User-Agent"                    => "Stripe/v1 ActiveMerchantBindings/#{ActiveMerchant::VERSION}",
+          "X-Stripe-Client-User-Agent"    => @@ua,
           "X-Stripe-Client-User-Metadata" => options[:meta].to_json
         }
       end
 
       def commit(method, url, parameters=nil, options = {})
         raw_response = response = nil
-        success = false
+        success      = false
         begin
           raw_response = ssl_request(method, self.live_url + url, post_data(parameters), headers(options))
-          response = parse(raw_response)
-          success = !response.key?("error")
+          response     = parse(raw_response)
+          success      = !response.key?("error")
         rescue ResponseError => e
           raw_response = e.response.body
           response = response_error(raw_response)
@@ -262,16 +284,16 @@ module ActiveMerchant #:nodoc:
           response = json_error(raw_response)
         end
 
-        card = response["card"] || response["active_card"] || {}
+        card     = response["card"] || response["active_card"] || response["source"] || {}
         avs_code = AVS_CODE_TRANSLATOR["line1: #{card["address_line1_check"]}, zip: #{card["address_zip_check"]}"]
         cvc_code = CVC_CODE_TRANSLATOR[card["cvc_check"]]
         Response.new(success,
           success ? "Transaction approved" : response["error"]["message"],
           response,
-          :test => response.has_key?("livemode") ? !response["livemode"] : false,
+          :test          => response.has_key?("livemode") ? !response["livemode"] : false,
           :authorization => response["id"],
-          :avs_result => { :code => avs_code },
-          :cvv_result => cvc_code
+          :avs_result    => { :code => avs_code },
+          :cvv_result    => cvc_code
         )
       end
 
@@ -284,7 +306,7 @@ module ActiveMerchant #:nodoc:
       end
 
       def json_error(raw_response)
-        msg = 'Invalid response received from the Stripe API.  Please contact support@stripe.com if you continue to receive this message.'
+        msg  = 'Invalid response received from the Stripe API.  Please contact support@stripe.com if you continue to receive this message.'
         msg += "  (The raw response returned by the API was #{raw_response.inspect})"
         {
           "error" => {

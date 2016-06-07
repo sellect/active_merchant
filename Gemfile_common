@@ -17,4 +17,4 @@ group :test, :remote_test do
   gem 'LitleOnline', '> 8.15.0'
 end
 
-gem 'money', '5.0.0', :platforms => [:ruby_18]
+gem 'money', '5.0.0'

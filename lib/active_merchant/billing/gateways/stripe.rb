@@ -188,6 +188,8 @@ module ActiveMerchant #:nodoc:
 
       def add_creditcard(post, creditcard, options)
         card = {}
+        card[:object] = "card"
+
         if creditcard.respond_to?(:number)
           if creditcard.respond_to?(:track_data) && creditcard.track_data.present?
             card[:swipe_data] = creditcard.track_data

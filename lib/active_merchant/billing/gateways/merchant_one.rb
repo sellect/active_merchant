@@ -8,7 +8,6 @@ module ActiveMerchant #:nodoc:
         def configure_ssl(http)
           super(http)
           http.use_ssl = true
-          http.ssl_version = :SSLv3
         end
       end
 
@@ -49,7 +48,23 @@ module ActiveMerchant #:nodoc:
         post = {}
         post.merge!(:transactionid => authorization)
         add_amount(post, money, options)
-        commit('capture', money, post)
+        commit('capture', 0, post)
+      end
+
+      def add_customer(money, creditcard, options = {})
+        post = {}
+        post['customer_vault'] = 'add_customer'
+        add_customer_data(post, options)
+        add_creditcard(post, creditcard)
+        add_address(post, creditcard, options)
+        add_amount(post, money, options)
+        commit('auth', money, post)
+      end
+
+      def void(authorization, option = {})
+        post = {}
+        add_transaction_data(post, authorization)
+        commit('void', 0, post)
       end
 
       def new_connection(endpoint)
@@ -76,9 +91,17 @@ module ActiveMerchant #:nodoc:
       end
 
       def add_creditcard(post, creditcard)
-       post['cvv'] = creditcard.verification_value
-       post['ccnumber'] = creditcard.number
-       post['ccexp'] =  "#{sprintf("%02d", creditcard.month)}#{"#{creditcard.year}"[-2, 2]}"
+        if creditcard.is_a?(String)
+          post[:customer_vault_id] = creditcard
+        else
+          post['cvv'] = creditcard.verification_value
+          post['ccnumber'] = creditcard.number
+          post['ccexp'] =  "#{sprintf("%02d", creditcard.month)}#{"#{creditcard.year}"[-2, 2]}"
+       end
+      end
+
+      def add_transaction_data(post, authorization)
+        post['transactionid'] = authorization
       end
 
       def commit(action, money, parameters={})

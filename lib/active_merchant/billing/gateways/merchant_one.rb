@@ -31,7 +31,7 @@ module ActiveMerchant #:nodoc:
         add_address(post, creditcard, options)
         add_customer_data(post, options)
         add_amount(post, money, options)
-        commit('auth', money, post)
+        commit('auth', post)
       end
 
       def purchase(money, creditcard, options = {})
@@ -41,30 +41,45 @@ module ActiveMerchant #:nodoc:
         add_address(post, creditcard, options)
         add_customer_data(post, options)
         add_amount(post, money, options)
-        commit('sale', money, post)
+        commit('sale', post)
       end
 
       def capture(money, authorization, options = {})
         post = {}
         post.merge!(:transactionid => authorization)
         add_amount(post, money, options)
-        commit('capture', 0, post)
-      end
-
-      def add_customer(money, creditcard, options = {})
-        post = {}
-        post['customer_vault'] = 'add_customer'
-        add_customer_data(post, options)
-        add_creditcard(post, creditcard)
-        add_address(post, creditcard, options)
-        add_amount(post, money, options)
-        commit('auth', money, post)
+        commit('capture', post)
       end
 
       def void(authorization, option = {})
         post = {}
         add_transaction_data(post, authorization)
-        commit('void', 0, post)
+        commit('void', post)
+      end
+
+      def refund(money, authorization, options = {})
+        post = {}
+        post.merge!(:transactionid => authorization)
+        add_amount(post, money, options)
+        commit('refund', post)
+      end
+
+      def store(creditcard, options = {})
+        post = {}
+        type = nil
+        post['customer_vault'] = 'add_customer'
+        add_customer_data(post, options)
+        add_creditcard(post, creditcard)
+        add_address(post, creditcard, options)
+        commit(type, post)
+      end
+
+      def unstore(customer_vault_id, options = {})
+        post = {}
+        type = nil
+        post['customer_vault'] = 'delete_customer'
+        add_customer_profile(post, customer_vault_id)
+        commit(type, post)
       end
 
       def new_connection(endpoint)
@@ -76,6 +91,10 @@ module ActiveMerchant #:nodoc:
       def add_customer_data(post, options)
         post['firstname'] = options[:billing_address][:first_name]
         post['lastname'] = options[:billing_address][:last_name]
+      end
+
+      def add_customer_profile(post, customer_vault_id)
+        post[:customer_vault_id] = customer_vault_id
       end
 
       def add_amount(post, money, options)
@@ -104,14 +123,14 @@ module ActiveMerchant #:nodoc:
         post['transactionid'] = authorization
       end
 
-      def commit(action, money, parameters={})
+      def commit(action, parameters={})
         parameters['username'] = @options[:username]
         parameters['password'] = @options[:password]
         parse(ssl_post(BASE_URL,post_data(action, parameters)))
       end
 
       def post_data(action, parameters = {})
-        parameters.merge!({:type => action})
+        parameters.merge!({:type => action}) unless action.nil? || action.empty?
         ret = ""
         for key in parameters.keys
           ret += "#{key}=#{CGI.escape(parameters[key].to_s)}"

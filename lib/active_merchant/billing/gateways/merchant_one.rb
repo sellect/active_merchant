@@ -8,7 +8,6 @@ module ActiveMerchant #:nodoc:
         def configure_ssl(http)
           super(http)
           http.use_ssl = true
-          http.ssl_version = :SSLv3
         end
       end
 
@@ -32,7 +31,7 @@ module ActiveMerchant #:nodoc:
         add_address(post, creditcard, options)
         add_customer_data(post, options)
         add_amount(post, money, options)
-        commit('auth', money, post)
+        commit('auth', post)
       end
 
       def purchase(money, creditcard, options = {})
@@ -42,14 +41,45 @@ module ActiveMerchant #:nodoc:
         add_address(post, creditcard, options)
         add_customer_data(post, options)
         add_amount(post, money, options)
-        commit('sale', money, post)
+        commit('sale', post)
       end
 
       def capture(money, authorization, options = {})
         post = {}
         post.merge!(:transactionid => authorization)
         add_amount(post, money, options)
-        commit('capture', money, post)
+        commit('capture', post)
+      end
+
+      def void(authorization, option = {})
+        post = {}
+        add_transaction_data(post, authorization)
+        commit('void', post)
+      end
+
+      def refund(money, authorization, options = {})
+        post = {}
+        post.merge!(:transactionid => authorization)
+        add_amount(post, money, options)
+        commit('refund', post)
+      end
+
+      def store(creditcard, options = {})
+        post = {}
+        type = nil
+        add_customer_vault_method_call(post, 'add_customer')
+        add_customer_data(post, options)
+        add_creditcard(post, creditcard)
+        add_address(post, creditcard, options)
+        commit(type, post)
+      end
+
+      def unstore(customer_vault_id, options = {})
+        post = {}
+        type = nil
+        add_customer_vault_method_call(post, 'delete_customer')
+        add_customer_profile(post, customer_vault_id)
+        commit(type, post)
       end
 
       def new_connection(endpoint)
@@ -59,36 +89,52 @@ module ActiveMerchant #:nodoc:
       private
 
       def add_customer_data(post, options)
-        post['firstname'] = options[:billing_address][:first_name]
-        post['lastname'] = options[:billing_address][:last_name]
+        post[:firstname] = options[:billing_address][:first_name]
+        post[:lastname] = options[:billing_address][:last_name]
+      end
+
+      def add_customer_profile(post, customer_vault_id)
+        post[:customer_vault_id] = customer_vault_id
+      end
+
+      def add_customer_vault_method_call(post, method)
+        post[:customer_vault] = method
       end
 
       def add_amount(post, money, options)
-        post['amount'] = amount(money)
+        post[:amount] = amount(money)
       end
 
       def add_address(post, creditcard, options)
-        post['address1'] = options[:billing_address][:address1]
-        post['city'] = options[:billing_address][:city]
-        post['state'] = options[:billing_address][:state]
-        post['zip'] = options[:billing_address][:zip]
-        post['country'] = options[:billing_address][:country]
+        post[:address1] = options[:billing_address][:address1]
+        post[:city] = options[:billing_address][:city]
+        post[:state] = options[:billing_address][:state]
+        post[:zip] = options[:billing_address][:zip]
+        post[:country] = options[:billing_address][:country]
       end
 
       def add_creditcard(post, creditcard)
-       post['cvv'] = creditcard.verification_value
-       post['ccnumber'] = creditcard.number
-       post['ccexp'] =  "#{sprintf("%02d", creditcard.month)}#{"#{creditcard.year}"[-2, 2]}"
+        if creditcard.is_a?(String)
+          post[:customer_vault_id] = creditcard
+        else
+          post[:cvv] = creditcard.verification_value
+          post[:ccnumber] = creditcard.number
+          post[:ccexp] =  "#{sprintf("%02d", creditcard.month)}#{"#{creditcard.year}"[-2, 2]}"
+       end
       end
 
-      def commit(action, money, parameters={})
-        parameters['username'] = @options[:username]
-        parameters['password'] = @options[:password]
+      def add_transaction_data(post, authorization)
+        post[:transactionid] = authorization
+      end
+
+      def commit(action, parameters={})
+        parameters[:username] = @options[:username]
+        parameters[:password] = @options[:password]
         parse(ssl_post(BASE_URL,post_data(action, parameters)))
       end
 
       def post_data(action, parameters = {})
-        parameters.merge!({:type => action})
+        parameters.merge!({:type => action}) unless action.nil? || action.empty?
         ret = ""
         for key in parameters.keys
           ret += "#{key}=#{CGI.escape(parameters[key].to_s)}"

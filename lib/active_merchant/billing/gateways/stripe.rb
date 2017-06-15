@@ -98,21 +98,16 @@ module ActiveMerchant #:nodoc:
         commit(:post, "application_fees/#{CGI.escape(identification)}/refund", post, options)
       end
 
-      # Note: creating a new credit card will not change the customer's existing default credit card (use :set_default => true)
       def store(creditcard, options = {})
         post = {}
         add_creditcard(post, creditcard, options)
-        post[:description] = options[:description]
-        post[:email]       = options[:email]
 
         commit_options = generate_meta(options)
         if options[:customer]
           MultiResponse.run(:first) do |r|
             r.process { commit(:post, "customers/#{CGI.escape(options[:customer])}/cards", post, commit_options) }
 
-            return r unless options[:set_default] and r.success? and !r.params["id"].blank?
-
-            r.process { update_customer(options[:customer], :default_card => r.params["id"]) }
+            r.process { update_customer(options[:customer], :default_card => r.params["id"], :email => options[:email], :description => options[:description]) }
           end
         else
           commit(:post, 'customers', post, commit_options)

@@ -118,7 +118,6 @@ module ActiveMerchant #:nodoc:
           post[:customer_vault_id] = creditcard
           post[:cvv]               = options[:cvv]
         else
-
           post[:cvv] = creditcard.verification_value
           post[:ccnumber] = creditcard.number
           post[:ccexp] =  "#{sprintf("%02d", creditcard.month)}#{"#{creditcard.year}"[-2, 2]}"

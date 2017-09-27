@@ -27,7 +27,7 @@ module ActiveMerchant #:nodoc:
       def authorize(money, creditcard, options = {})
         post = {}
         add_customer_data(post, options)
-        add_creditcard(post, creditcard)
+        add_creditcard(post, creditcard, options)
         add_address(post, creditcard, options)
         add_customer_data(post, options)
         add_amount(post, money, options)
@@ -37,7 +37,7 @@ module ActiveMerchant #:nodoc:
       def purchase(money, creditcard, options = {})
         post = {}
         add_customer_data(post, options)
-        add_creditcard(post, creditcard)
+        add_creditcard(post, creditcard, options)
         add_address(post, creditcard, options)
         add_customer_data(post, options)
         add_amount(post, money, options)
@@ -69,7 +69,7 @@ module ActiveMerchant #:nodoc:
         type = nil
         add_customer_vault_method_call(post, 'add_customer')
         add_customer_data(post, options)
-        add_creditcard(post, creditcard)
+        add_creditcard(post, creditcard, options)
         add_address(post, creditcard, options)
         commit(type, post)
       end
@@ -113,10 +113,12 @@ module ActiveMerchant #:nodoc:
         post[:country] = options[:billing_address][:country]
       end
 
-      def add_creditcard(post, creditcard)
+      def add_creditcard(post, creditcard, options = {})
         if creditcard.is_a?(String)
           post[:customer_vault_id] = creditcard
+          post[:cvv]               = options[:cvv]
         else
+
           post[:cvv] = creditcard.verification_value
           post[:ccnumber] = creditcard.number
           post[:ccexp] =  "#{sprintf("%02d", creditcard.month)}#{"#{creditcard.year}"[-2, 2]}"

@@ -101,7 +101,7 @@ module ActiveMerchant #:nodoc:
       def initialize(options = {})
         requires!(options, :login, :password)
         super
-        
+
         # NOTE: set @options[:test_requests] instead of setting to test? value
         #@options[:test_requests] = test? if @options[:test_requests].nil?
       end
@@ -868,7 +868,7 @@ module ActiveMerchant #:nodoc:
           success = %w(1 4).include?(direct_response['response_code'])
           message = direct_response['message']
           transaction_id = direct_response['transaction_id']
-  
+
           cvv_result = CVVResult.new(direct_response['card_code']) if direct_response['card_code']
           avs_result = AVSResult.new(:code => direct_response['avs_response']) if direct_response['avs_response']
 
@@ -876,7 +876,7 @@ module ActiveMerchant #:nodoc:
             :test => test?,
             :cvv_result => cvv_result,
             :avs_result => avs_result,
-            :fraud_review => response_params['direct_response'].try(:[], 'response_code') == 4,
+            :fraud_review => direct_response['response_code'].try(:to_i) == 4,
             :authorization => transaction_id || response_params['customer_profile_id'] || (response_params['profile'] ? response_params['profile']['customer_profile_id'] : nil)
           }
         else

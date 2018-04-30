@@ -1,3 +1,9 @@
+1.40.0.19
+----------
+**Fixes**
+- PR #16 - Authorize.net - Use new Akamai endpoint for CIM Gateway
+  - adds missing fix from #10
+
 1.40.0.18
 ----------
 **Fixes**

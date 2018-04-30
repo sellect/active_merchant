@@ -1,3 +1,8 @@
+1.40.0.18
+----------
+**Fixes**
+- PR #10 - Authorize.net - Use new Akamai endpoints
+
 1.40.0.17
 ----------
 **Fixes**

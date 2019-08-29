@@ -1,13 +1,43 @@
 = ActiveMerchant CHANGELOG
 
-== HEAD
+1.78.0.2
+-----------
+**Diff**
+- https://github.com/sellect/active_merchant/compare/v1.78.0.1...v1.78.0.2
 
-== Version 1.78.0.1
-Sellect-only release built off `1-78-0-stable` branch
-to track as exactly the same as AM parent v1.78.0 release
+**Upgrade Notes/Breaking Changes**
+- PR #17 - forward port changes from #9 (v1.40.0.13)
+  - should not be breaking changes in diff from `1.78.0.1`, but test to
+    be sure
 
-# diff
-https://github.com/activemerchant/active_merchant/compare/v1.78.0...sellect:v1.78.0.1
+1.78.0.1
+-----------
+**Note**
+- this is a Sellect-only release built off `1-78-0-stable` branch
+  to track as exactly the same as AM parent v1.78.0 release
+  - diff for comparison
+    - https://github.com/activemerchant/active_merchant/compare/v1.78.0...sellect:v1.78.0.1
+
+**diff from last Sellect Release**
+- https://github.com/sellect/active_merchant/compare/v1.40.0.19...v1.78.0.1
+
+**Upgrade Notes/Breaking Changes**
+- This is a major, potentially breaking, upgrade from the last Sellect ActiveMerchant Release
+  - Only changes related to the following gateways were tested and either included in later ActiveMerchant
+    Releases or Sellect ActiveMerchant fork releases (i.e. v1.78.0.2 above)
+    - Authorize.net
+    - Stripe
+  - Any other gateway usage besides Auth.net and Stripe will require reviewing
+    the full AM diff (https://github.com/sellect/active_merchant/compare/v1.40.0.19...v1.78.0.1)
+    for changes for that particular gateway
+    - as well as reviewing all Sellect AM releases in case any of those patches were not included
+      in later AM releases
+      - e.g. https://github.com/sellect/active_merchant/compare/1.40.0.1rc...sellect:v1.40.0.19
+  - All gateways will need to be tested end to end in any case
+  - see discussion for more details:
+    - https://github.com/sellect/sellect/pull/2929
+    - https://github.com/sellect/sellect/issues/1983
+
 
 == Version 1.78.0 (March 29, 2018)
 * Litle: Add store for echecks [nfarve] #2779

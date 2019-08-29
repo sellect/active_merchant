@@ -2,6 +2,13 @@
 
 == HEAD
 
+== Version 1.78.0.1
+Sellect-only release built off `1-78-0-stable` branch
+to track as exactly the same as AM parent v1.78.0 release
+
+# diff
+https://github.com/activemerchant/active_merchant/compare/v1.78.0...sellect:1-78-0-stable
+
 == Version 1.78.0 (March 29, 2018)
 * Litle: Add store for echecks [nfarve] #2779
 * Litle: Add Support for Echeck [nfarve] #2776

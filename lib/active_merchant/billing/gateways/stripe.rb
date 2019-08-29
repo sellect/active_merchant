@@ -320,6 +320,7 @@ module ActiveMerchant #:nodoc:
         end
 
         add_metadata(post, options)
+        add_shipping_info(post, options)
         add_application_fee(post, options)
         add_exchange_rate(post, options)
         add_destination(post, options)
@@ -470,6 +471,27 @@ module ActiveMerchant #:nodoc:
       def add_emv_metadata(post, creditcard)
         post[:metadata] ||= {}
         post[:metadata][:card_read_method] = creditcard.read_method if creditcard.respond_to?(:read_method)
+      end
+
+      def add_shipping_info(post, options = {})
+        # address.line1 and name are required parameters for shipping
+        if (address = options[:shipping_address]) && address[:address1] && (name = address_name(address))
+          post[:shipping] = {}
+          post[:shipping][:name] = name
+
+          address_params = {}
+          address_params[:line1] = address[:address1]
+          address_params[:line2] = address[:address2] if address[:address2]
+          address_params[:city] = address[:city] if address[:city]
+          address_params[:state] = address[:state] if address[:state]
+          address_params[:postal_code] = address[:zip] if address[:zip]
+          address_params[:country] = address[:country] if address[:country]
+          post[:shipping][:address] = address_params
+
+          post[:shipping][:phone] = address[:phone] if address[:phone]
+          post[:shipping][:carrier] = options[:carrier] if options[:carrier]
+          post[:shipping][:tracking_number] = options[:tracking_number] if options[:tracking_number]
+        end
       end
 
       def fetch_application_fee(identification, options = {})
@@ -670,6 +692,14 @@ module ActiveMerchant #:nodoc:
       def auth_minimum_amount(options)
         return 100 unless options[:currency]
         return MINIMUM_AUTHORIZE_AMOUNTS[options[:currency].upcase] || 100
+      end
+
+      def address_name(address)
+        if address[:name]
+          address[:name]
+        elsif address[:first_name] && address[:last_name]
+          "#{address[:first_name]} #{address[:last_name]}"
+        end
       end
     end
   end
